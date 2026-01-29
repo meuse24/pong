@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#07080f" />
+    <title>Neon Pong</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="ui">
+      <button
+        id="menu-toggle"
+        class="icon-button"
+        aria-controls="menu-panel"
+        aria-expanded="false"
+        aria-label="Einstellungen öffnen"
+        type="button"
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <div id="menu-backdrop"></div>
+      <div id="menu-panel">
+        <div class="brand">NEON PONG</div>
+        <label class="field">
+          <span>KI-Schwierigkeit</span>
+          <select id="difficulty">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Spiele bis</span>
+          <input id="win-target" type="number" min="1" max="15" value="5" />
+        </label>
+        <div class="hint">W/S oder ↑/↓ · Maus bewegen · Touch ziehen</div>
+      </div>
+      <div id="start-screen" class="screen visible">
+        <div class="screen-card">
+          <div class="screen-title">NEON PONG</div>
+          <div class="screen-subtitle">
+            First to <span id="win-target-label">5</span>
+          </div>
+          <div class="screen-actions">
+            <button id="start-button" class="cta" type="button">
+              Start
+            </button>
+            <button id="info-button" class="cta secondary" type="button">
+              Info
+            </button>
+          </div>
+          <div class="hint">W/S oder ↑/↓ · Maus bewegen · Touch ziehen</div>
+        </div>
+      </div>
+      <div id="info-screen" class="screen">
+        <div class="screen-card">
+          <div class="screen-title">Info</div>
+          <div class="screen-subtitle">Steuerung & Tipps</div>
+          <div class="info-grid">
+            <div class="info-row">
+              <span class="info-label">Tastatur</span>
+              <span>W/S oder ↑/↓</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Maus</span>
+              <span>Vertikal folgen</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Touch</span>
+              <span>Drag / Swipe</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Ziel</span>
+              <span>First to X (im Menü)</span>
+            </div>
+          </div>
+          <button id="info-close" class="cta secondary" type="button">
+            Zurück
+          </button>
+        </div>
+      </div>
+      <div id="gameover-screen" class="screen">
+        <div class="screen-card">
+          <div id="gameover-title" class="screen-title">GAME OVER</div>
+          <div id="gameover-score" class="screen-subtitle">0 : 0</div>
+          <button id="gameover-button" class="cta" type="button">
+            Noch eine Runde
+          </button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
