@@ -3,7 +3,9 @@ import "./style.css";
 
 const ui = {
   difficultySelect: document.getElementById("difficulty"),
+  handednessSelect: document.getElementById("handedness"),
   winTargetInput: document.getElementById("win-target"),
+  languageSelect: document.getElementById("language"),
   menuToggle: document.getElementById("menu-toggle"),
   menuPanel: document.getElementById("menu-panel"),
   menuBackdrop: document.getElementById("menu-backdrop"),
@@ -33,6 +35,67 @@ const COLORS = {
   white: 0xf1fbff,
 };
 
+const TRANSLATIONS = {
+  de: {
+    difficulty: "KI-Schwierigkeit",
+    difficultyEasy: "Einfach",
+    difficultyMedium: "Mittel",
+    difficultyHard: "Schwer",
+    handedness: "Händigkeit",
+    handednessRight: "Rechte Hand",
+    handednessLeft: "Linke Hand",
+    language: "Sprache",
+    playUntil: "Spiele bis",
+    controlsHint: "W/S oder ↑/↓ · Maus bewegen · Touch ziehen",
+    firstTo: "Zuerst bis",
+    start: "Start",
+    info: "Info",
+    controlsAndTips: "Steuerung & Tipps",
+    keyboard: "Tastatur",
+    keyboardControls: "W/S oder ↑/↓",
+    mouse: "Maus",
+    mouseControls: "Vertikal folgen",
+    touch: "Touch",
+    touchControls: "Drag / Swipe",
+    goal: "Ziel",
+    goalDescription: "Zuerst bis X (im Menü)",
+    back: "Zurück",
+    playAgain: "Noch eine Runde",
+    menuToggleLabel: "Einstellungen öffnen",
+    youWin: "DU GEWINNST",
+    aiWins: "KI GEWINNT",
+  },
+  en: {
+    difficulty: "AI Difficulty",
+    difficultyEasy: "Easy",
+    difficultyMedium: "Medium",
+    difficultyHard: "Hard",
+    handedness: "Handedness",
+    handednessRight: "Right Hand",
+    handednessLeft: "Left Hand",
+    language: "Language",
+    playUntil: "Play until",
+    controlsHint: "W/S or ↑/↓ · Move mouse · Touch drag",
+    firstTo: "First to",
+    start: "Start",
+    info: "Info",
+    controlsAndTips: "Controls & Tips",
+    keyboard: "Keyboard",
+    keyboardControls: "W/S or ↑/↓",
+    mouse: "Mouse",
+    mouseControls: "Follow vertically",
+    touch: "Touch",
+    touchControls: "Drag / Swipe",
+    goal: "Goal",
+    goalDescription: "First to X (in menu)",
+    back: "Back",
+    playAgain: "Play Again",
+    menuToggleLabel: "Open settings",
+    youWin: "YOU WIN",
+    aiWins: "AI WINS",
+  },
+};
+
 class PongScene extends Phaser.Scene {
   constructor() {
     super("PongScene");
@@ -47,6 +110,12 @@ class PongScene extends Phaser.Scene {
     this.menuOpen = false;
     this.winTarget = 5;
     this.gameState = "start";
+    this.touchHandedness = "right";
+    this.touchZoneWidth = 0;
+    this.activeTouchId = null;
+    this.lastPaddleHitAt = 0;
+    this.lastPaddleHitPaddle = null;
+    this.currentLanguage = "de";
   }
 
   create() {
@@ -175,11 +244,55 @@ class PongScene extends Phaser.Scene {
     this.aiConfig = DIFFICULTIES[name] || DIFFICULTIES.medium;
   }
 
+  setLanguage(lang) {
+    this.currentLanguage = lang;
+    localStorage.setItem("pong-language", lang);
+    this.updateLanguage();
+  }
+
+  updateLanguage() {
+    const translations = TRANSLATIONS[this.currentLanguage] || TRANSLATIONS.de;
+
+    document.querySelectorAll("[data-i18n]").forEach((element) => {
+      const key = element.getAttribute("data-i18n");
+      if (translations[key]) {
+        element.textContent = translations[key];
+      }
+    });
+
+    document.querySelectorAll("[data-i18n-aria]").forEach((element) => {
+      const key = element.getAttribute("data-i18n-aria");
+      if (translations[key]) {
+        element.setAttribute("aria-label", translations[key]);
+      }
+    });
+
+    if (ui.languageSelect) {
+      ui.languageSelect.value = this.currentLanguage;
+    }
+
+    if (this.gameState === "gameover") {
+      const winner = this.scoreLeft >= this.winTarget ? "left" : "right";
+      if (ui.gameOverTitle) {
+        ui.gameOverTitle.textContent =
+          winner === "left" ? translations.youWin : translations.aiWins;
+      }
+    }
+  }
+
   initUi() {
     if (this.uiBound) return;
     this.uiBound = true;
 
+    const savedLanguage = localStorage.getItem("pong-language") || "de";
+    this.currentLanguage = savedLanguage;
+    if (ui.languageSelect) {
+      ui.languageSelect.value = savedLanguage;
+    }
+    this.updateLanguage();
+
     this.setDifficulty(ui.difficultySelect?.value || "medium");
+    this.touchHandedness = ui.handednessSelect?.value || "right";
     this.winTarget = this.readWinTarget();
     this.updateWinTargetLabels();
 
@@ -191,6 +304,14 @@ class PongScene extends Phaser.Scene {
       this.winTarget = this.readWinTarget();
       this.updateWinTargetLabels();
       this.checkWinTarget();
+    });
+
+    ui.handednessSelect?.addEventListener("change", (event) => {
+      this.touchHandedness = event.target.value === "left" ? "left" : "right";
+    });
+
+    ui.languageSelect?.addEventListener("change", (event) => {
+      this.setLanguage(event.target.value);
     });
 
     ui.startButton?.addEventListener("click", () => this.startMatch());
@@ -244,9 +365,10 @@ class PongScene extends Phaser.Scene {
   }
 
   showGameOverScreen(winner) {
+    const translations = TRANSLATIONS[this.currentLanguage] || TRANSLATIONS.de;
     if (ui.gameOverTitle) {
       ui.gameOverTitle.textContent =
-        winner === "left" ? "DU GEWINNST" : "KI GEWINNT";
+        winner === "left" ? translations.youWin : translations.aiWins;
     }
     if (ui.gameOverScore) {
       ui.gameOverScore.textContent = `${this.scoreLeft} : ${this.scoreRight}`;
@@ -388,9 +510,22 @@ class PongScene extends Phaser.Scene {
   }
 
   handlePointer(pointer) {
-    if (pointer.pointerType === "touch" && !pointer.isDown) {
+    if (pointer.pointerType === "touch") {
+      if (!pointer.isDown) return;
+      if (this.activeTouchId !== null && pointer.id !== this.activeTouchId) {
+        return;
+      }
+      if (!this.isInTouchZone(pointer)) {
+        return;
+      }
+      this.activeTouchId = pointer.id;
+      this.pointerActive = true;
+      this.pointerSource = "touch";
+      this.playerTargetY = pointer.worldY;
+      this.lastPointerTime = this.time.now;
       return;
     }
+
     this.pointerActive = true;
     this.pointerSource = pointer.pointerType || "mouse";
     this.playerTargetY = pointer.worldY;
@@ -399,7 +534,11 @@ class PongScene extends Phaser.Scene {
 
   handlePointerUp(pointer) {
     if (pointer.pointerType === "touch") {
+      if (this.activeTouchId === null || pointer.id !== this.activeTouchId) {
+        return;
+      }
       this.pointerActive = false;
+      this.activeTouchId = null;
     }
   }
 
@@ -415,6 +554,7 @@ class PongScene extends Phaser.Scene {
     };
 
     this.safeMargin = Math.max(8, Math.min(width, height) * 0.015);
+    this.touchZoneWidth = Phaser.Math.Clamp(width * 0.22, 80, 200);
 
     this.physics.world.setBounds(0, 0, width, height);
     this.physics.world.setBoundsCollision(false, false, true, true);
@@ -528,6 +668,7 @@ class PongScene extends Phaser.Scene {
         time - this.lastPointerTime > 1200
       ) {
         this.pointerActive = false;
+        this.activeTouchId = null;
       }
     }
   }
@@ -595,6 +736,13 @@ class PongScene extends Phaser.Scene {
   }
 
   handlePaddleHit(ball, paddle) {
+    const now = this.time.now;
+    if (this.lastPaddleHitPaddle === paddle && now - this.lastPaddleHitAt < 80) {
+      return;
+    }
+    this.lastPaddleHitAt = now;
+    this.lastPaddleHitPaddle = paddle;
+
     this.playImpactSound("paddle");
     const diff = (ball.y - paddle.y) / (this.paddleHeight / 2);
     const speed = Phaser.Math.Clamp(
@@ -610,6 +758,8 @@ class PongScene extends Phaser.Scene {
 
     ball.body.setVelocity(finalVx, finalVy);
     ball.setStrokeStyle(2, dir > 0 ? COLORS.magenta : COLORS.cyan, 0.95);
+    ball.x =
+      paddle.x + dir * (this.paddleWidth / 2 + this.ballRadius + 2);
   }
 
   handleWorldBounds(body, up, down) {
@@ -646,12 +796,27 @@ class PongScene extends Phaser.Scene {
     this.gameState = "playing";
     this.ballActive = true;
     this.resetBall(Phaser.Math.Between(0, 1) === 0 ? -1 : 1);
+
+    // Enter fullscreen
+    const elem = document.documentElement;
+    if (elem.requestFullscreen) {
+      elem.requestFullscreen().catch((err) => {
+        console.warn("Fullscreen request failed:", err);
+      });
+    }
   }
 
   endMatch(winner) {
     this.gameState = "gameover";
     this.holdBall();
     this.showGameOverScreen(winner);
+
+    // Exit fullscreen
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch((err) => {
+        console.warn("Exit fullscreen failed:", err);
+      });
+    }
   }
 
   scheduleServe(direction) {
@@ -693,6 +858,15 @@ class PongScene extends Phaser.Scene {
       }
       this.scheduleServe(1);
     }
+  }
+
+  isInTouchZone(pointer) {
+    if (!this.touchZoneWidth || !this.bounds) return true;
+    const x = pointer.worldX;
+    if (this.touchHandedness === "left") {
+      return x <= this.touchZoneWidth;
+    }
+    return x >= this.bounds.width - this.touchZoneWidth;
   }
 
   checkWinTarget() {

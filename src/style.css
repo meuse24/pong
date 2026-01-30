@@ -298,6 +298,14 @@ input[type="number"] {
   color: var(--text-main);
 }
 
+.info-footer {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
 .info-row {
   display: grid;
   grid-template-columns: 90px 1fr;

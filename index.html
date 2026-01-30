@@ -24,6 +24,7 @@
         aria-controls="menu-panel"
         aria-expanded="false"
         aria-label="Einstellungen öffnen"
+        data-i18n-aria="menuToggleLabel"
         type="button"
       >
         <span></span>
@@ -34,59 +35,76 @@
       <div id="menu-panel">
         <div class="brand">NEON PONG</div>
         <label class="field">
-          <span>KI-Schwierigkeit</span>
+          <span data-i18n="difficulty">KI-Schwierigkeit</span>
           <select id="difficulty">
-            <option value="easy">Easy</option>
-            <option value="medium" selected>Medium</option>
-            <option value="hard">Hard</option>
+            <option value="easy" data-i18n="difficultyEasy">Einfach</option>
+            <option value="medium" selected data-i18n="difficultyMedium">Mittel</option>
+            <option value="hard" data-i18n="difficultyHard">Schwer</option>
           </select>
         </label>
         <label class="field">
-          <span>Spiele bis</span>
+          <span data-i18n="handedness">Händigkeit</span>
+          <select id="handedness">
+            <option value="right" selected data-i18n="handednessRight">Rechte Hand</option>
+            <option value="left" data-i18n="handednessLeft">Linke Hand</option>
+          </select>
+        </label>
+        <label class="field">
+          <span data-i18n="language">Sprache</span>
+          <select id="language">
+            <option value="de" selected>Deutsch</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <label class="field">
+          <span data-i18n="playUntil">Spiele bis</span>
           <input id="win-target" type="number" min="1" max="15" value="5" />
         </label>
-        <div class="hint">W/S oder ↑/↓ · Maus bewegen · Touch ziehen</div>
+        <div class="hint" data-i18n="controlsHint">W/S oder ↑/↓ · Maus bewegen · Touch ziehen</div>
       </div>
       <div id="start-screen" class="screen visible">
         <div class="screen-card">
           <div class="screen-title">NEON PONG</div>
           <div class="screen-subtitle">
-            First to <span id="win-target-label">5</span>
+            <span data-i18n="firstTo">Zuerst bis</span> <span id="win-target-label">5</span>
           </div>
           <div class="screen-actions">
-            <button id="start-button" class="cta" type="button">
+            <button id="start-button" class="cta" type="button" data-i18n="start">
               Start
             </button>
-            <button id="info-button" class="cta secondary" type="button">
+            <button id="info-button" class="cta secondary" type="button" data-i18n="info">
               Info
             </button>
           </div>
-          <div class="hint">W/S oder ↑/↓ · Maus bewegen · Touch ziehen</div>
+          <div class="hint" data-i18n="controlsHint">W/S oder ↑/↓ · Maus bewegen · Touch ziehen</div>
         </div>
       </div>
       <div id="info-screen" class="screen">
         <div class="screen-card">
-          <div class="screen-title">Info</div>
-          <div class="screen-subtitle">Steuerung & Tipps</div>
+          <div class="screen-title" data-i18n="info">Info</div>
+          <div class="screen-subtitle" data-i18n="controlsAndTips">Steuerung & Tipps</div>
           <div class="info-grid">
             <div class="info-row">
-              <span class="info-label">Tastatur</span>
-              <span>W/S oder ↑/↓</span>
+              <span class="info-label" data-i18n="keyboard">Tastatur</span>
+              <span data-i18n="keyboardControls">W/S oder ↑/↓</span>
             </div>
             <div class="info-row">
-              <span class="info-label">Maus</span>
-              <span>Vertikal folgen</span>
+              <span class="info-label" data-i18n="mouse">Maus</span>
+              <span data-i18n="mouseControls">Vertikal folgen</span>
             </div>
             <div class="info-row">
-              <span class="info-label">Touch</span>
-              <span>Drag / Swipe</span>
+              <span class="info-label" data-i18n="touch">Touch</span>
+              <span data-i18n="touchControls">Drag / Swipe</span>
             </div>
             <div class="info-row">
-              <span class="info-label">Ziel</span>
-              <span>First to X (im Menü)</span>
+              <span class="info-label" data-i18n="goal">Ziel</span>
+              <span data-i18n="goalDescription">Zuerst bis X (im Menü)</span>
             </div>
           </div>
-          <button id="info-close" class="cta secondary" type="button">
+          <div class="info-footer">
+            © 2026 meuse24 · Built with Codex · License: MIT
+          </div>
+          <button id="info-close" class="cta secondary" type="button" data-i18n="back">
             Zurück
           </button>
         </div>
@@ -95,7 +113,7 @@
         <div class="screen-card">
           <div id="gameover-title" class="screen-title">GAME OVER</div>
           <div id="gameover-score" class="screen-subtitle">0 : 0</div>
-          <button id="gameover-button" class="cta" type="button">
+          <button id="gameover-button" class="cta" type="button" data-i18n="playAgain">
             Noch eine Runde
           </button>
         </div>
