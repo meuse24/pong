@@ -229,15 +229,29 @@ class PongScene extends Phaser.Scene {
   }
 
   updateScore() {
-    this.scoreLeftText.setText(String(this.scoreLeft));
-    this.scoreRightText.setText(String(this.scoreRight));
+    const isRightHanded = this.touchHandedness === "right";
+
+    if (isRightHanded) {
+      this.scoreRightText.setText(String(this.scoreLeft));
+      this.scoreLeftText.setText(String(this.scoreRight));
+    } else {
+      this.scoreLeftText.setText(String(this.scoreLeft));
+      this.scoreRightText.setText(String(this.scoreRight));
+    }
   }
 
   updateScoreLayout() {
     const top = Math.max(18, this.bounds.height * 0.04);
     const offset = Math.max(70, this.bounds.width * 0.06);
-    this.scoreLeftText.setPosition(this.bounds.centerX - offset, top);
-    this.scoreRightText.setPosition(this.bounds.centerX + offset, top);
+    const isRightHanded = this.touchHandedness === "right";
+
+    if (isRightHanded) {
+      this.scoreRightText.setPosition(this.bounds.centerX + offset, top);
+      this.scoreLeftText.setPosition(this.bounds.centerX - offset, top);
+    } else {
+      this.scoreLeftText.setPosition(this.bounds.centerX - offset, top);
+      this.scoreRightText.setPosition(this.bounds.centerX + offset, top);
+    }
   }
 
   setDifficulty(name) {
@@ -308,6 +322,7 @@ class PongScene extends Phaser.Scene {
 
     ui.handednessSelect?.addEventListener("change", (event) => {
       this.touchHandedness = event.target.value === "left" ? "left" : "right";
+      this.onResize(this.scale.gameSize);
     });
 
     ui.languageSelect?.addEventListener("change", (event) => {
@@ -545,38 +560,53 @@ class PongScene extends Phaser.Scene {
   onResize(gameSize) {
     const width = gameSize.width;
     const height = gameSize.height;
+    const isRightHanded = this.touchHandedness === "right";
+
+    const hasTouchSupport = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const controlMargin = hasTouchSupport ? width * 0.1 : 0;
+    const fieldOffsetX = hasTouchSupport
+      ? (isRightHanded ? -controlMargin / 2 : controlMargin / 2)
+      : 0;
+    const fieldWidth = width - controlMargin;
 
     this.bounds = {
-      width,
+      width: fieldWidth,
       height,
-      centerX: width / 2,
+      offsetX: fieldOffsetX + (width - fieldWidth) / 2,
+      centerX: fieldOffsetX + width / 2,
       centerY: height / 2,
+      fullWidth: width,
     };
 
-    this.safeMargin = Math.max(8, Math.min(width, height) * 0.015);
+    this.safeMargin = Math.max(8, Math.min(fieldWidth, height) * 0.015);
     this.touchZoneWidth = Phaser.Math.Clamp(width * 0.22, 80, 200);
 
-    this.physics.world.setBounds(0, 0, width, height);
+    this.physics.world.setBounds(
+      this.bounds.offsetX,
+      0,
+      fieldWidth,
+      height
+    );
     this.physics.world.setBoundsCollision(false, false, true, true);
 
     this.paddleHeight = Math.max(90, height * 0.18);
-    this.paddleWidth = Math.max(12, width * 0.012);
-    this.ballRadius = Math.max(6, Math.min(width, height) * 0.012);
+    this.paddleWidth = Math.max(12, fieldWidth * 0.012);
+    this.ballRadius = Math.max(6, Math.min(fieldWidth, height) * 0.012);
 
-    const marginX = Math.max(20, width * 0.04);
+    const marginX = Math.max(20, fieldWidth * 0.04);
     const minY = this.paddleHeight / 2 + this.safeMargin;
     const maxY = height - this.paddleHeight / 2 - this.safeMargin;
 
     this.playerPaddle.setSize(this.paddleWidth, this.paddleHeight);
     this.playerPaddle.setPosition(
-      marginX,
+      isRightHanded ? this.bounds.offsetX + fieldWidth - marginX : this.bounds.offsetX + marginX,
       Phaser.Math.Clamp(this.playerPaddle.y || height / 2, minY, maxY)
     );
     this.playerPaddle.body.setSize(this.paddleWidth, this.paddleHeight, true);
 
     this.aiPaddle.setSize(this.paddleWidth, this.paddleHeight);
     this.aiPaddle.setPosition(
-      width - marginX,
+      isRightHanded ? this.bounds.offsetX + marginX : this.bounds.offsetX + fieldWidth - marginX,
       Phaser.Math.Clamp(this.aiPaddle.y || height / 2, minY, maxY)
     );
     this.aiPaddle.body.setSize(this.paddleWidth, this.paddleHeight, true);
@@ -586,16 +616,19 @@ class PongScene extends Phaser.Scene {
     this.ballGlow.setRadius(this.ballRadius * 2.4);
 
     this.updateScoreLayout();
-    this.drawArena(width, height);
+    this.drawArena();
   }
 
-  drawArena(width, height) {
+  drawArena() {
+    const width = this.bounds.width;
+    const height = this.bounds.height;
+    const offsetX = this.bounds.offsetX;
     const inset = Math.max(12, Math.min(width, height) * 0.02);
 
     this.arena.clear();
     this.arena.lineStyle(2, COLORS.cyan, 0.22);
     this.arena.strokeRoundedRect(
-      inset,
+      offsetX + inset,
       inset,
       width - inset * 2,
       height - inset * 2,
@@ -607,8 +640,9 @@ class PongScene extends Phaser.Scene {
     const dash = 14;
     const gap = 12;
     let y = inset + 8;
+    const centerX = offsetX + width / 2;
     while (y < height - inset - 8) {
-      this.midLine.lineBetween(width / 2, y, width / 2, y + dash);
+      this.midLine.lineBetween(centerX, y, centerX, y + dash);
       y += dash + gap;
     }
   }
@@ -680,8 +714,12 @@ class PongScene extends Phaser.Scene {
 
     const minY = this.paddleHeight / 2 + this.safeMargin;
     const maxY = this.bounds.height - this.paddleHeight / 2 - this.safeMargin;
+    const isRightHanded = this.touchHandedness === "right";
+    const ballMovingTowardsAi = isRightHanded
+      ? this.ball.body.velocity.x < 0
+      : this.ball.body.velocity.x > 0;
 
-    if (this.ball.body.velocity.x > 0) {
+    if (ballMovingTowardsAi) {
       if (time > this.aiNextDecision) {
         const predicted = this.predictBallY(this.aiPaddle.x);
         const error = Phaser.Math.Between(
@@ -713,12 +751,16 @@ class PongScene extends Phaser.Scene {
     const ball = this.ball;
     const vx = ball.body.velocity.x;
     const vy = ball.body.velocity.y;
+    const isRightHanded = this.touchHandedness === "right";
+    const ballMovingTowardsTarget = isRightHanded
+      ? vx < 0
+      : vx > 0;
 
-    if (vx <= 0) {
+    if (!ballMovingTowardsTarget) {
       return this.bounds.centerY;
     }
 
-    const time = (targetX - ball.x) / vx;
+    const time = Math.abs((targetX - ball.x) / vx);
     const minY = this.ballRadius + this.safeMargin;
     const maxY = this.bounds.height - this.ballRadius - this.safeMargin;
     const range = maxY - minY;
@@ -751,13 +793,22 @@ class PongScene extends Phaser.Scene {
       920
     );
 
-    const dir = paddle === this.playerPaddle ? 1 : -1;
+    const isRightHanded = this.touchHandedness === "right";
+    const isPlayerPaddle = paddle === this.playerPaddle;
+    let dir;
+
+    if (isRightHanded) {
+      dir = isPlayerPaddle ? -1 : 1;
+    } else {
+      dir = isPlayerPaddle ? 1 : -1;
+    }
+
     const maxVy = speed * 0.85;
     const finalVy = Phaser.Math.Clamp(diff * 320, -maxVy, maxVy);
     const finalVx = Math.sqrt(speed * speed - finalVy * finalVy) * dir;
 
     ball.body.setVelocity(finalVx, finalVy);
-    ball.setStrokeStyle(2, dir > 0 ? COLORS.magenta : COLORS.cyan, 0.95);
+    ball.setStrokeStyle(2, isPlayerPaddle ? COLORS.cyan : COLORS.magenta, 0.95);
     ball.x =
       paddle.x + dir * (this.paddleWidth / 2 + this.ballRadius + 2);
   }
@@ -772,8 +823,9 @@ class PongScene extends Phaser.Scene {
   resetBall(direction) {
     const angle = Phaser.Math.DegToRad(Phaser.Math.Between(-40, 40));
     const speed = this.ballBaseSpeed;
+    const centerX = this.bounds.offsetX + this.bounds.width / 2;
 
-    this.ball.setPosition(this.bounds.centerX, this.bounds.centerY);
+    this.ball.setPosition(centerX, this.bounds.centerY);
     this.ball.body.setVelocity(
       Math.cos(angle) * speed * direction,
       Math.sin(angle) * speed
@@ -783,7 +835,8 @@ class PongScene extends Phaser.Scene {
   holdBall() {
     this.ballActive = false;
     this.ball.body.setVelocity(0, 0);
-    this.ball.setPosition(this.bounds.centerX, this.bounds.centerY);
+    const centerX = this.bounds.offsetX + this.bounds.width / 2;
+    this.ball.setPosition(centerX, this.bounds.centerY);
   }
 
   startMatch() {
@@ -826,7 +879,8 @@ class PongScene extends Phaser.Scene {
 
     this.ballActive = false;
     this.ball.body.setVelocity(0, 0);
-    this.ball.setPosition(this.bounds.centerX, this.bounds.centerY);
+    const centerX = this.bounds.offsetX + this.bounds.width / 2;
+    this.ball.setPosition(centerX, this.bounds.centerY);
 
     this.time.delayedCall(550, () => {
       this.ballActive = true;
@@ -836,25 +890,46 @@ class PongScene extends Phaser.Scene {
 
   checkScore() {
     const x = this.ball.x;
-    const outLeft = x < -this.ballRadius * 2;
-    const outRight = x > this.bounds.width + this.ballRadius * 2;
+    const outLeft = x < this.bounds.offsetX - this.ballRadius * 2;
+    const outRight = x > this.bounds.offsetX + this.bounds.width + this.ballRadius * 2;
+    const isRightHanded = this.touchHandedness === "right";
 
     if (outLeft) {
-      this.scoreRight += 1;
-      this.updateScore();
-      this.playGoalSound("right");
-      if (this.scoreRight >= this.winTarget) {
-        this.endMatch("right");
-        return;
+      if (isRightHanded) {
+        this.scoreLeft += 1;
+        this.updateScore();
+        this.playGoalSound("left");
+        if (this.scoreLeft >= this.winTarget) {
+          this.endMatch("left");
+          return;
+        }
+      } else {
+        this.scoreRight += 1;
+        this.updateScore();
+        this.playGoalSound("right");
+        if (this.scoreRight >= this.winTarget) {
+          this.endMatch("right");
+          return;
+        }
       }
       this.scheduleServe(-1);
     } else if (outRight) {
-      this.scoreLeft += 1;
-      this.updateScore();
-      this.playGoalSound("left");
-      if (this.scoreLeft >= this.winTarget) {
-        this.endMatch("left");
-        return;
+      if (isRightHanded) {
+        this.scoreRight += 1;
+        this.updateScore();
+        this.playGoalSound("right");
+        if (this.scoreRight >= this.winTarget) {
+          this.endMatch("right");
+          return;
+        }
+      } else {
+        this.scoreLeft += 1;
+        this.updateScore();
+        this.playGoalSound("left");
+        if (this.scoreLeft >= this.winTarget) {
+          this.endMatch("left");
+          return;
+        }
       }
       this.scheduleServe(1);
     }
@@ -866,7 +941,7 @@ class PongScene extends Phaser.Scene {
     if (this.touchHandedness === "left") {
       return x <= this.touchZoneWidth;
     }
-    return x >= this.bounds.width - this.touchZoneWidth;
+    return x >= this.bounds.fullWidth - this.touchZoneWidth;
   }
 
   checkWinTarget() {
