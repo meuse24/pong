@@ -15,6 +15,9 @@ const ui = {
   infoButton: document.getElementById("info-button"),
   infoScreen: document.getElementById("info-screen"),
   infoClose: document.getElementById("info-close"),
+  helpButton: document.getElementById("help-button"),
+  helpScreen: document.getElementById("help-screen"),
+  helpClose: document.getElementById("help-close"),
   rotateScreen: document.getElementById("orientation-lock"),
   rotateTry: document.getElementById("rotate-try"),
   winTargetLabel: document.getElementById("win-target-label"),
@@ -68,6 +71,36 @@ const TRANSLATIONS = {
     powerSlowFieldActive: "Slow-Field aktiv",
     powerLaserReady: "Laser-Serve bereit",
     powerBarrierActive: "Barrier-Core aktiv",
+    help: "Hilfe",
+    helpSubtitle: "Anleitung & Power-ups",
+    howToPlay: "So spielst du",
+    helpMove: "Bewegen",
+    helpMoveDesc: "W/S, ↑/↓, Maus oder Touch.",
+    helpScore: "Punkte",
+    helpScoreDesc: "Wer zuerst das Ziel erreicht, gewinnt.",
+    helpMenu: "Menü",
+    helpMenuDesc: "Spiel-Einstellungen nur vor dem Start.",
+    powerups: "Power-ups",
+    powerPhaseName: "Phase-Ball",
+    powerPhaseDesc: "3 Hits ohne Wand: Gegner-Paddle schrumpft auf 60%.",
+    powerShieldName: "Pulse-Schild",
+    powerShieldDesc: "2 Gegentore: naechster Treffer wird geblockt.",
+    powerTurboName: "Turbo-Serve",
+    powerTurboDesc: "Schneller Punkt: naechster Aufschlag schneller.",
+    powerGhostName: "Ghost-Paddle",
+    powerGhostDesc: "5 Rand-Deflections: Paddle groesser.",
+    powerInvertName: "Invert-Spin",
+    powerInvertDesc: "Starker Winkel: Spin kurz invertiert.",
+    powerMagnetName: "Magnet-Fang",
+    powerMagnetDesc: "4 Hits in Serie: Ball klebt sehr kurz am Paddle.",
+    powerDashName: "Dash-Paddle",
+    powerDashDesc: "3 schnelle Returns: Paddle wird schneller.",
+    powerSlowName: "Slow-Field",
+    powerSlowDesc: "Rueckstand: Ball auf deiner Haelfte langsamer.",
+    powerLaserName: "Laser-Serve",
+    powerLaserDesc: "Punkt ohne Wand: flacher Serve (+15% Tempo).",
+    powerBarrierName: "Barrier-Core",
+    powerBarrierDesc: "Lange Rally + Rueckstand: Barriere blockt einmal.",
     attractTagline: "Neon. Reflexe. Momentum.",
     playUntil: "Spiele bis",
     controlsHint: "W/S oder ↑/↓ · Maus bewegen · Touch ziehen",
@@ -121,6 +154,36 @@ const TRANSLATIONS = {
     powerSlowFieldActive: "Slow Field active",
     powerLaserReady: "Laser Serve ready",
     powerBarrierActive: "Barrier Core active",
+    help: "Help",
+    helpSubtitle: "How to play & power-ups",
+    howToPlay: "How to play",
+    helpMove: "Move",
+    helpMoveDesc: "W/S, ↑/↓, mouse, or touch.",
+    helpScore: "Score",
+    helpScoreDesc: "First to reach the target wins.",
+    helpMenu: "Menu",
+    helpMenuDesc: "Settings are locked during play.",
+    powerups: "Power-ups",
+    powerPhaseName: "Phase Ball",
+    powerPhaseDesc: "3 hits no wall: opponent paddle shrinks to 60%.",
+    powerShieldName: "Pulse Shield",
+    powerShieldDesc: "2 conceded: next hit gets blocked.",
+    powerTurboName: "Turbo Serve",
+    powerTurboDesc: "Fast point: next serve is faster.",
+    powerGhostName: "Ghost Paddle",
+    powerGhostDesc: "5 edge deflections: paddle grows.",
+    powerInvertName: "Invert Spin",
+    powerInvertDesc: "Sharp angle: spin inverts briefly.",
+    powerMagnetName: "Magnet Catch",
+    powerMagnetDesc: "4 hits in a row: ball sticks very briefly.",
+    powerDashName: "Dash Paddle",
+    powerDashDesc: "3 quick returns: paddle speed boost.",
+    powerSlowName: "Slow Field",
+    powerSlowDesc: "Trailing: ball slows on your half.",
+    powerLaserName: "Laser Serve",
+    powerLaserDesc: "Point without wall: flatter serve (+15% speed).",
+    powerBarrierName: "Barrier Core",
+    powerBarrierDesc: "Long rally + trailing: barrier blocks once.",
     attractTagline: "Neon. Reflexes. Momentum.",
     playUntil: "Play until",
     controlsHint: "W/S or ↑/↓ · Move mouse · Touch drag",
@@ -178,6 +241,7 @@ class PongScene extends Phaser.Scene {
     };
     this.phaseOwner = null;
     this.phaseDisabledPaddle = null;
+    this.phaseDebuffSide = null;
     this.wallTouchedSinceLastHit = false;
     this.rallyStartAt = 0;
     this.turboTimer = null;
@@ -206,6 +270,8 @@ class PongScene extends Phaser.Scene {
       phaseActive: false,
       phaseCooldownUntil: 0,
       phaseExpiresAt: 0,
+      phaseDebuffActive: false,
+      phaseDebuffUntil: 0,
       shieldActive: false,
       shieldCooldownUntil: 0,
       turboServeReady: false,
@@ -736,6 +802,11 @@ class PongScene extends Phaser.Scene {
       if (state.phaseActive && time > state.phaseExpiresAt) {
         this.deactivatePhase();
       }
+      if (state.phaseDebuffActive && time > state.phaseDebuffUntil) {
+        state.phaseDebuffActive = false;
+        state.phaseDebuffUntil = 0;
+        this.updatePaddleLayout();
+      }
       if (state.dashActive && time > state.dashUntil) {
         state.dashActive = false;
       }
@@ -1034,7 +1105,7 @@ class PongScene extends Phaser.Scene {
     const maxVy = this.ballBaseSpeed * 0.85;
     const finalVy = Phaser.Math.Clamp(velocity * 0.7, -maxVy, maxVy);
     const speed = Phaser.Math.Clamp(
-      this.ballBaseSpeed * 1.05,
+      this.ballBaseSpeed * 1.02,
       this.ballBaseSpeed,
       960
     );
@@ -1114,9 +1185,15 @@ class PongScene extends Phaser.Scene {
   activatePhase(side) {
     const state = this.sideState[side];
     if (state.phaseActive || this.phaseOwner) return;
+    const opponent = this.getOpponentSide(side);
+    const duration = 5000;
     state.phaseActive = true;
     this.phaseOwner = side;
-    state.phaseExpiresAt = this.time.now + 8000;
+    state.phaseExpiresAt = this.time.now + duration;
+    this.phaseDebuffSide = opponent;
+    this.sideState[opponent].phaseDebuffActive = true;
+    this.sideState[opponent].phaseDebuffUntil = this.time.now + duration;
+    this.updatePaddleLayout();
     this.phaseEmitter?.start();
     this.ball.setStrokeStyle(2, COLORS.cyan, 0.95);
     this.showToast(this.getTranslation("powerPhaseActive"), "#7ff7ff");
@@ -1126,8 +1203,12 @@ class PongScene extends Phaser.Scene {
     if (this.phaseOwner) {
       this.sideState[this.phaseOwner].phaseActive = false;
     }
-    if (this.phaseDisabledPaddle?.body) {
-      this.phaseDisabledPaddle.body.checkCollision.none = false;
+    if (this.phaseDebuffSide) {
+      const debuffState = this.sideState[this.phaseDebuffSide];
+      debuffState.phaseDebuffActive = false;
+      debuffState.phaseDebuffUntil = 0;
+      this.phaseDebuffSide = null;
+      this.updatePaddleLayout();
     }
     this.phaseDisabledPaddle = null;
     this.phaseOwner = null;
@@ -1137,20 +1218,7 @@ class PongScene extends Phaser.Scene {
   updatePhaseState(time) {
     if (!this.phaseOwner) return;
     const owner = this.phaseOwner;
-    const opponent = this.getOpponentSide(owner);
-    const opponentPaddle = opponent === "player" ? this.playerPaddle : this.aiPaddle;
-
-    if (!opponentPaddle?.body) return;
-    opponentPaddle.body.checkCollision.none = true;
-    this.phaseDisabledPaddle = opponentPaddle;
-
-    const vx = this.ball.body.velocity.x;
-    const passDistance = this.paddleWidth / 2 + this.ballRadius + 6;
-    if (
-      (vx < 0 && this.ball.x < opponentPaddle.x - passDistance) ||
-      (vx > 0 && this.ball.x > opponentPaddle.x + passDistance) ||
-      time > this.sideState[owner].phaseExpiresAt
-    ) {
+    if (time > this.sideState[owner].phaseExpiresAt) {
       this.deactivatePhase();
     }
   }
@@ -1257,8 +1325,8 @@ class PongScene extends Phaser.Scene {
 
     if (state.laserServeReady) {
       state.laserServeReady = false;
-      speed = base * 1.2;
-      angleRange = { min: -12, max: 12 };
+      speed = base * 1.15;
+      angleRange = { min: -18, max: 18 };
       this.startServeFx("laser", 800);
     } else if (state.turboServeReady) {
       state.turboServeReady = false;
@@ -1355,7 +1423,7 @@ class PongScene extends Phaser.Scene {
     if (!state.magnetReady || state.magnetActive) return false;
     state.magnetReady = false;
     state.magnetActive = true;
-    state.magnetReleaseAt = this.time.now + 260;
+    state.magnetReleaseAt = this.time.now + 200;
     this.ball.body.setVelocity(0, 0);
     this.ball.body.moves = false;
     this.magnetPaddle = paddle;
@@ -1438,6 +1506,8 @@ class PongScene extends Phaser.Scene {
       state.phaseActive = false;
       state.phaseCooldownUntil = 0;
       state.phaseExpiresAt = 0;
+      state.phaseDebuffActive = false;
+      state.phaseDebuffUntil = 0;
       state.shieldActive = false;
       state.shieldCooldownUntil = 0;
       state.turboServeReady = false;
@@ -1745,6 +1815,8 @@ class PongScene extends Phaser.Scene {
     ui.gameOverButton?.addEventListener("click", () => this.startMatch());
     ui.infoButton?.addEventListener("click", () => this.showInfoScreen());
     ui.infoClose?.addEventListener("click", () => this.hideInfoScreen());
+    ui.helpButton?.addEventListener("click", () => this.showHelpScreen());
+    ui.helpClose?.addEventListener("click", () => this.hideHelpScreen());
 
     ui.menuToggle?.addEventListener("click", () =>
       this.setMenuOpen(!this.menuOpen)
@@ -1755,6 +1827,7 @@ class PongScene extends Phaser.Scene {
       if (event.key === "Escape") {
         this.setMenuOpen(false);
         this.hideInfoScreen();
+        this.hideHelpScreen();
       }
       if (event.key === "Enter" && this.gameState !== "playing") {
         this.startMatch();
@@ -1824,11 +1897,22 @@ class PongScene extends Phaser.Scene {
   }
 
   showInfoScreen() {
+    this.hideHelpScreen();
     ui.infoScreen?.classList.add("visible");
   }
 
   hideInfoScreen() {
     ui.infoScreen?.classList.remove("visible");
+  }
+
+  showHelpScreen() {
+    this.setMenuOpen(false);
+    this.hideInfoScreen();
+    ui.helpScreen?.classList.add("visible");
+  }
+
+  hideHelpScreen() {
+    ui.helpScreen?.classList.remove("visible");
   }
 
   setupAudio() {
@@ -2069,8 +2153,12 @@ class PongScene extends Phaser.Scene {
     const height = this.bounds.height;
     const fieldWidth = this.bounds.width;
     const isRightHanded = this.touchHandedness === "right";
-    const playerScale = this.sideState.player.ghostActive ? 1.25 : 1;
-    const aiScale = this.sideState.ai.ghostActive ? 1.25 : 1;
+    const playerScale =
+      (this.sideState.player.ghostActive ? 1.25 : 1) *
+      (this.sideState.player.phaseDebuffActive ? 0.6 : 1);
+    const aiScale =
+      (this.sideState.ai.ghostActive ? 1.25 : 1) *
+      (this.sideState.ai.phaseDebuffActive ? 0.6 : 1);
 
     this.playerPaddleHeight = this.paddleHeightBase * playerScale;
     this.aiPaddleHeight = this.paddleHeightBase * aiScale;
@@ -2272,12 +2360,6 @@ class PongScene extends Phaser.Scene {
     this.lastPaddleHitPaddle = paddle;
 
     const side = this.getSideByPaddle(paddle);
-    if (this.phaseOwner && this.sideState[this.phaseOwner].phaseActive) {
-      const opponent = this.getOpponentSide(this.phaseOwner);
-      if (side === opponent) {
-        return;
-      }
-    }
     this.handlePowerupTriggersOnHit(side, ball, paddle);
     if (this.tryActivateMagnet(side, paddle)) {
       return;
@@ -2350,6 +2432,7 @@ class PongScene extends Phaser.Scene {
   startMatch() {
     this.hideStartScreen();
     this.hideGameOverScreen();
+    this.hideHelpScreen();
     this.setMenuOpen(false);
     this.resetPowerups();
     this.scoreLeft = 0;
