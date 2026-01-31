@@ -470,6 +470,19 @@ class PongScene extends Phaser.Scene {
       .setOrigin(0.5, 0)
       .setAlpha(0);
 
+    this.powerupBanner = this.add
+      .text(0, 0, "", {
+        fontFamily: "Oxanium, Segoe UI, sans-serif",
+        fontSize: "72px",
+        color: "#e9f6ff",
+        letterSpacing: "10px",
+      })
+      .setDepth(100)
+      .setOrigin(0.5)
+      .setAlpha(0);
+    this.powerupBannerTween = null;
+    this.powerupBannerBaseScale = 1;
+
     this.playerShieldGlow = this.add
       .rectangle(0, 0, 30, 120)
       .setStrokeStyle(2, COLORS.cyan, 0.85)
@@ -688,6 +701,24 @@ class PongScene extends Phaser.Scene {
     }
   }
 
+  updatePowerupBannerLayout() {
+    if (!this.powerupBanner) return;
+    const maxWidth = this.bounds.width * 0.88;
+    const baseSize = Phaser.Math.Clamp(
+      Math.min(this.bounds.width, this.bounds.height) * 0.14,
+      34,
+      96
+    );
+    this.powerupBanner.setFontSize(`${Math.round(baseSize)}px`);
+    this.powerupBanner.setPosition(this.bounds.centerX, this.bounds.centerY);
+    this.powerupBanner.setScale(1);
+    if (this.powerupBanner.width > maxWidth) {
+      const scale = maxWidth / this.powerupBanner.width;
+      this.powerupBanner.setScale(scale);
+    }
+    this.powerupBannerBaseScale = this.powerupBanner.scaleX || 1;
+  }
+
   showToast(message, color = "#e9f6ff") {
     if (!this.toastText) return;
     this.toastText.setText(message);
@@ -700,6 +731,43 @@ class PongScene extends Phaser.Scene {
       yoyo: true,
       hold: 900,
       ease: "Sine.easeOut",
+    });
+  }
+
+  showPowerupBanner(translationKey, color = "#e9f6ff") {
+    if (!this.powerupBanner) return;
+    const isLow = this.fxQuality === "low";
+    const label = this.getTranslation(translationKey) || translationKey;
+    const text = label.toUpperCase();
+    const glowStrength = isLow ? 12 : 22;
+    const strokeWidth = isLow ? 1.4 : 2.4;
+    const alphaPeak = isLow ? 0.8 : 1.0;
+
+    this.powerupBanner.setText(text);
+    this.powerupBanner.setColor(color);
+    this.powerupBanner.setShadow(0, 0, color, glowStrength, true, true);
+    this.powerupBanner.setStroke(color, strokeWidth);
+    this.updatePowerupBannerLayout();
+
+    if (this.powerupBannerTween) {
+      this.powerupBannerTween.stop();
+      this.powerupBannerTween = null;
+    }
+
+    const baseScale = this.powerupBannerBaseScale || 1;
+    this.powerupBanner.setAlpha(0);
+    this.powerupBanner.setScale(baseScale * (isLow ? 0.98 : 0.95));
+    this.powerupBannerTween = this.tweens.add({
+      targets: this.powerupBanner,
+      alpha: alphaPeak,
+      scale: baseScale * (isLow ? 1 : 1.04),
+      duration: isLow ? 180 : 240,
+      yoyo: true,
+      hold: isLow ? 520 : 950,
+      ease: "Sine.easeOut",
+      onComplete: () => {
+        this.powerupBanner.setAlpha(0);
+      },
     });
   }
 
@@ -1197,6 +1265,7 @@ class PongScene extends Phaser.Scene {
     this.phaseEmitter?.start();
     this.ball.setStrokeStyle(2, COLORS.cyan, 0.95);
     this.showToast(this.getTranslation("powerPhaseActive"), "#7ff7ff");
+    this.showPowerupBanner("powerPhaseName", "#7ff7ff");
   }
 
   deactivatePhase() {
@@ -1231,6 +1300,7 @@ class PongScene extends Phaser.Scene {
     state.edgeDeflects = 0;
     this.updatePaddleLayout();
     this.showToast(this.getTranslation("powerGhostActive"), "#7ff7ff");
+    this.showPowerupBanner("powerGhostName", "#7ff7ff");
   }
 
   activateInvert(side) {
@@ -1239,6 +1309,7 @@ class PongScene extends Phaser.Scene {
     state.invertUntil = this.time.now + 4000;
     state.invertCooldownUntil = this.time.now + 10000;
     this.showToast(this.getTranslation("powerInvertActive"), "#b8a2ff");
+    this.showPowerupBanner("powerInvertName", "#b8a2ff");
     this.invertEmitter?.start();
   }
 
@@ -1272,6 +1343,7 @@ class PongScene extends Phaser.Scene {
 
     this.spawnShieldBurst(physicalSide);
     this.showToast(this.getTranslation("powerShieldUsed"), "#7ff7ff");
+    this.showPowerupBanner("powerShieldName", "#7ff7ff");
     this.playImpactSound("wall");
     this.startRally();
     return true;
@@ -1328,10 +1400,12 @@ class PongScene extends Phaser.Scene {
       speed = base * 1.15;
       angleRange = { min: -18, max: 18 };
       this.startServeFx("laser", 800);
+      this.showPowerupBanner("powerLaserName", "#c7b7ff");
     } else if (state.turboServeReady) {
       state.turboServeReady = false;
       speed = base * 1.3;
       this.startServeFx("turbo", 1000);
+      this.showPowerupBanner("powerTurboName", "#ff91e6");
     }
 
     return { speed, angleRange };
@@ -1428,6 +1502,7 @@ class PongScene extends Phaser.Scene {
     this.ball.body.moves = false;
     this.magnetPaddle = paddle;
     this.showToast(this.getTranslation("powerMagnetActive"), "#9fd6ff");
+    this.showPowerupBanner("powerMagnetName", "#9fd6ff");
     return true;
   }
 
@@ -1438,6 +1513,7 @@ class PongScene extends Phaser.Scene {
     state.dashCooldownUntil = this.time.now + 12000;
     state.fastSaveCount = 0;
     this.showToast(this.getTranslation("powerDashActive"), "#7ff7ff");
+    this.showPowerupBanner("powerDashName", "#7ff7ff");
   }
 
   activateSlowField(side) {
@@ -1446,6 +1522,7 @@ class PongScene extends Phaser.Scene {
     state.slowFieldUntil = this.time.now + 3200;
     state.slowFieldCooldownUntil = this.time.now + 16000;
     this.showToast(this.getTranslation("powerSlowFieldActive"), "#7cc7ff");
+    this.showPowerupBanner("powerSlowName", "#7cc7ff");
   }
 
   activateBarrier(side) {
@@ -1462,6 +1539,7 @@ class PongScene extends Phaser.Scene {
     this.barrierWall.body.setEnable(true);
     this.updateEffectOverlays();
     this.showToast(this.getTranslation("powerBarrierActive"), "#caa9ff");
+    this.showPowerupBanner("powerBarrierName", "#caa9ff");
   }
 
   deactivateBarrier(side) {
@@ -1871,11 +1949,19 @@ class PongScene extends Phaser.Scene {
   showStartScreen() {
     ui.startScreen?.classList.add("visible");
     this.startAttractMode();
+    this.showStartBanner();
   }
 
   hideStartScreen() {
     ui.startScreen?.classList.remove("visible");
     this.stopAttractMode();
+    if (this.startBannerTimer) {
+      this.startBannerTimer.remove(false);
+      this.startBannerTimer = null;
+    }
+    if (this.powerupBanner) {
+      this.powerupBanner.setAlpha(0);
+    }
   }
 
   showGameOverScreen(winner) {
@@ -1913,6 +1999,21 @@ class PongScene extends Phaser.Scene {
 
   hideHelpScreen() {
     ui.helpScreen?.classList.remove("visible");
+  }
+
+  showStartBanner() {
+    this.showPowerupBanner("brand", "#e9f6ff");
+    if (this.startBannerTimer) {
+      this.startBannerTimer.remove(false);
+    }
+    this.startBannerTimer = this.time.addEvent({
+      delay: 2200,
+      loop: true,
+      callback: () => {
+        if (!ui.startScreen?.classList.contains("visible")) return;
+        this.showPowerupBanner("brand", "#e9f6ff");
+      },
+    });
   }
 
   setupAudio() {
@@ -2118,6 +2219,7 @@ class PongScene extends Phaser.Scene {
     if (this.toastText) {
       this.toastText.setPosition(this.bounds.centerX, Math.max(10, height * 0.02));
     }
+    this.updatePowerupBannerLayout();
     this.updateAttractFxLayout();
   }
 
