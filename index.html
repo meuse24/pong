@@ -67,6 +67,9 @@
             <option value="off" data-i18n="fullscreenOff">Aus</option>
           </select>
         </label>
+        <button id="help-button" class="menu-action" type="button" data-i18n="help">
+          Hilfe
+        </button>
         <div class="hint" data-i18n="controlsHint">W/S oder ↑/↓ · Maus bewegen · Touch ziehen</div>
       </div>
       <div id="start-screen" class="screen visible">
@@ -132,6 +135,92 @@
             <span data-i18n="infoFooter">© 2026 meuse24 · Built with Codex · License: MIT</span>
           </div>
           <button id="info-close" class="cta secondary" type="button" data-i18n="back">
+            Zurück
+          </button>
+        </div>
+      </div>
+      <div id="help-screen" class="screen">
+        <div class="screen-card help-card">
+          <div class="screen-title" data-i18n="help">Hilfe</div>
+          <div class="screen-subtitle" data-i18n="helpSubtitle">
+            Anleitung & Power-ups
+          </div>
+          <div class="help-section">
+            <div class="help-heading" data-i18n="howToPlay">So spielst du</div>
+            <div class="help-grid">
+              <div class="help-row">
+                <span class="help-icon help-icon-move" aria-hidden="true">MV</span>
+                <span class="help-label" data-i18n="helpMove">Bewegen</span>
+                <span data-i18n="helpMoveDesc">W/S, ↑/↓, Maus oder Touch.</span>
+              </div>
+              <div class="help-row">
+                <span class="help-icon help-icon-score" aria-hidden="true">SC</span>
+                <span class="help-label" data-i18n="helpScore">Punkte</span>
+                <span data-i18n="helpScoreDesc">Wer zuerst das Ziel erreicht, gewinnt.</span>
+              </div>
+              <div class="help-row">
+                <span class="help-icon help-icon-menu" aria-hidden="true">MN</span>
+                <span class="help-label" data-i18n="helpMenu">Menü</span>
+                <span data-i18n="helpMenuDesc">Spiel-Einstellungen nur vor dem Start.</span>
+              </div>
+            </div>
+          </div>
+          <div class="help-section">
+            <div class="help-heading" data-i18n="powerups">Power-ups</div>
+            <div class="help-grid">
+              <div class="help-row">
+                <span class="help-icon power-icon power-phase" aria-hidden="true">PH</span>
+                <span class="help-label" data-i18n="powerPhaseName">Phase-Ball</span>
+                <span data-i18n="powerPhaseDesc">3 Hits ohne Wand: Gegner-Paddle schrumpft auf 60%.</span>
+              </div>
+              <div class="help-row">
+                <span class="help-icon power-icon power-shield" aria-hidden="true">SH</span>
+                <span class="help-label" data-i18n="powerShieldName">Pulse-Schild</span>
+                <span data-i18n="powerShieldDesc">2 Gegentore: naechster Treffer wird geblockt.</span>
+              </div>
+              <div class="help-row">
+                <span class="help-icon power-icon power-turbo" aria-hidden="true">TB</span>
+                <span class="help-label" data-i18n="powerTurboName">Turbo-Serve</span>
+                <span data-i18n="powerTurboDesc">Schneller Punkt: naechster Aufschlag schneller.</span>
+              </div>
+              <div class="help-row">
+                <span class="help-icon power-icon power-ghost" aria-hidden="true">GH</span>
+                <span class="help-label" data-i18n="powerGhostName">Ghost-Paddle</span>
+                <span data-i18n="powerGhostDesc">5 Rand-Deflections: Paddle groesser.</span>
+              </div>
+              <div class="help-row">
+                <span class="help-icon power-icon power-invert" aria-hidden="true">IV</span>
+                <span class="help-label" data-i18n="powerInvertName">Invert-Spin</span>
+                <span data-i18n="powerInvertDesc">Starker Winkel: Spin kurz invertiert.</span>
+              </div>
+              <div class="help-row">
+                <span class="help-icon power-icon power-magnet" aria-hidden="true">MG</span>
+                <span class="help-label" data-i18n="powerMagnetName">Magnet-Fang</span>
+                <span data-i18n="powerMagnetDesc">4 Hits in Serie: Ball klebt sehr kurz am Paddle.</span>
+              </div>
+              <div class="help-row">
+                <span class="help-icon power-icon power-dash" aria-hidden="true">DS</span>
+                <span class="help-label" data-i18n="powerDashName">Dash-Paddle</span>
+                <span data-i18n="powerDashDesc">3 schnelle Returns: Paddle wird schneller.</span>
+              </div>
+              <div class="help-row">
+                <span class="help-icon power-icon power-slow" aria-hidden="true">SL</span>
+                <span class="help-label" data-i18n="powerSlowName">Slow-Field</span>
+                <span data-i18n="powerSlowDesc">Rueckstand: Ball auf deiner Haelfte langsamer.</span>
+              </div>
+              <div class="help-row">
+                <span class="help-icon power-icon power-laser" aria-hidden="true">LS</span>
+                <span class="help-label" data-i18n="powerLaserName">Laser-Serve</span>
+                <span data-i18n="powerLaserDesc">Punkt ohne Wand: flacher Serve (+15% Tempo).</span>
+              </div>
+              <div class="help-row">
+                <span class="help-icon power-icon power-barrier" aria-hidden="true">BR</span>
+                <span class="help-label" data-i18n="powerBarrierName">Barrier-Core</span>
+                <span data-i18n="powerBarrierDesc">Lange Rally + Rueckstand: Barriere blockt einmal.</span>
+              </div>
+            </div>
+          </div>
+          <button id="help-close" class="cta secondary" type="button" data-i18n="back">
             Zurück
           </button>
         </div>

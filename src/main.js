@@ -473,13 +473,12 @@ class PongScene extends Phaser.Scene {
     this.powerupBanner = this.add
       .text(0, 0, "", {
         fontFamily: "Oxanium, Segoe UI, sans-serif",
-        fontSize: "72px",
-        color: "#e9f6ff",
-        letterSpacing: "10px",
+        fontSize: "32px",
+        color: "#ffffff",
       })
-      .setDepth(100)
       .setOrigin(0.5)
-      .setAlpha(1);
+      .setDepth(50)
+      .setAlpha(0);
     this.powerupBannerTimer = null;
     this.powerupBannerBaseScale = 1;
 
@@ -703,14 +702,15 @@ class PongScene extends Phaser.Scene {
 
   updatePowerupBannerLayout() {
     if (!this.powerupBanner) return;
-    const maxWidth = this.bounds.width * 0.88;
+    const maxWidth = this.bounds.width * 0.7;
     const baseSize = Phaser.Math.Clamp(
-      Math.min(this.bounds.width, this.bounds.height) * 0.14,
-      34,
-      96
+      Math.min(this.bounds.width, this.bounds.height) * 0.055,
+      18,
+      42
     );
     this.powerupBanner.setFontSize(`${Math.round(baseSize)}px`);
-    this.powerupBanner.setPosition(this.bounds.centerX, this.bounds.centerY);
+    const yPosition = this.bounds.height * 0.78;
+    this.powerupBanner.setPosition(this.bounds.centerX, yPosition);
     this.powerupBanner.setScale(1);
     if (this.powerupBanner.width > maxWidth) {
       const scale = maxWidth / this.powerupBanner.width;
@@ -736,34 +736,46 @@ class PongScene extends Phaser.Scene {
 
   showPowerupBanner(translationKey, color = "#e9f6ff") {
     if (!this.powerupBanner) return;
-    const isLow = this.fxQuality === "low";
     const label = this.getTranslation(translationKey) || translationKey;
     const text = label.toUpperCase();
-    const glowStrength = isLow ? 12 : 22;
-    const strokeWidth = isLow ? 1.4 : 2.4;
 
-    this.powerupBanner.setText(text);
-    this.powerupBanner.setColor(color);
-    this.powerupBanner.setShadow(0, 0, color, glowStrength, true, true);
-    this.powerupBanner.setStroke(color, strokeWidth);
-    this.powerupBanner.setAlpha(1);
-    this.powerupBanner.setVisible(true);
-    this.updatePowerupBannerLayout();
-
+    // Stop existing tweens and timer
+    this.tweens.killTweensOf(this.powerupBanner);
     if (this.powerupBannerTimer) {
       this.powerupBannerTimer.remove(false);
       this.powerupBannerTimer = null;
     }
 
-    const baseScale = this.powerupBannerBaseScale || 1;
-    this.powerupBanner.setScale(baseScale * (isLow ? 1 : 1.04));
+    this.powerupBanner.setText(text);
+    this.powerupBanner.setColor(color);
+    this.powerupBanner.setVisible(true);
+    this.powerupBanner.setAlpha(0);
+    this.updatePowerupBannerLayout();
 
-    this.powerupBannerTimer = this.time.delayedCall(2000, () => {
-      if (this.powerupBanner) {
-        this.powerupBanner.setText("");
-        this.powerupBanner.setVisible(false);
+    // Fade in
+    this.tweens.add({
+      targets: this.powerupBanner,
+      alpha: 0.6,
+      duration: 250,
+      ease: "Sine.easeOut",
+      onComplete: () => {
+        // Hold then fade out
+        this.powerupBannerTimer = this.time.delayedCall(1800, () => {
+          this.tweens.add({
+            targets: this.powerupBanner,
+            alpha: 0,
+            duration: 400,
+            ease: "Sine.easeIn",
+            onComplete: () => {
+              if (this.powerupBanner) {
+                this.powerupBanner.setText("");
+                this.powerupBanner.setVisible(false);
+              }
+            }
+          });
+          this.powerupBannerTimer = null;
+        });
       }
-      this.powerupBannerTimer = null;
     });
   }
 

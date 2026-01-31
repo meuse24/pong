@@ -13,6 +13,8 @@ Neon Pong ist ein minimalistisches, neon-inspiriertes Pong-Spiel im Browser. Fok
 - `index.html`: App-Shell, UI-Overlays (Menue, Start/Info/Gameover), i18n-Container.
 - `src/main.js`: Phaser Scene, Spiel-Logik, Input, Audio, UI-Events, i18n, Settings.
 - `src/style.css`: Neon-Theme, Layout und UI-Komponenten.
+- Menue enthaelt einen Hilfe-Bereich mit Anleitung und Power-up-Erklaerungen.
+- Hilfe-Seite hat Icon-Grid mit leichten Animationen fuer Power-ups.
 
 ## Build- & Dev-Prozess
 - `npm run dev`: Lokale Entwicklung mit Hot Reload.
@@ -28,6 +30,7 @@ Neon Pong ist ein minimalistisches, neon-inspiriertes Pong-Spiel im Browser. Fok
 - Der Hinweis nutzt ein dezentes Rotationssymbol als visuelle Anleitung.
 - Power-ups mit VFX (Phase-Ball, Pulse-Schild, Turbo-Serve, Ghost-Paddle, Invert-Spin) basieren auf In-Game-Triggern.
 - Zusaetzliche Power-ups: Magnet-Fang, Dash-Paddle, Slow-Field, Laser-Serve, Barrier-Core.
+- Bei Aktivierung erscheint der Power-up-Name dezent im unteren Bildschirmdrittel (halbtransparent, sanftes Fade-in/out).
 
 ## Performance
 - Adaptives FX-Profil reduziert Partikel und Glow-Intensitaet bei niedriger FPS.
