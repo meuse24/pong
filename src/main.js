@@ -62,6 +62,12 @@ const TRANSLATIONS = {
     powerTurboReady: "Turbo-Serve bereit",
     powerGhostActive: "Ghost-Paddle aktiv",
     powerInvertActive: "Invert-Spin aktiv",
+    powerMagnetReady: "Magnet-Fang bereit",
+    powerMagnetActive: "Magnet-Fang!",
+    powerDashActive: "Dash-Paddle aktiv",
+    powerSlowFieldActive: "Slow-Field aktiv",
+    powerLaserReady: "Laser-Serve bereit",
+    powerBarrierActive: "Barrier-Core aktiv",
     playUntil: "Spiele bis",
     controlsHint: "W/S oder ↑/↓ · Maus bewegen · Touch ziehen",
     firstTo: "Zuerst bis",
@@ -108,6 +114,12 @@ const TRANSLATIONS = {
     powerTurboReady: "Turbo Serve ready",
     powerGhostActive: "Ghost Paddle active",
     powerInvertActive: "Invert Spin active",
+    powerMagnetReady: "Magnet Catch ready",
+    powerMagnetActive: "Magnet Catch!",
+    powerDashActive: "Dash Paddle active",
+    powerSlowFieldActive: "Slow Field active",
+    powerLaserReady: "Laser Serve ready",
+    powerBarrierActive: "Barrier Core active",
     playUntil: "Play until",
     controlsHint: "W/S or ↑/↓ · Move mouse · Touch drag",
     firstTo: "First to",
@@ -167,6 +179,21 @@ class PongScene extends Phaser.Scene {
     this.wallTouchedSinceLastHit = false;
     this.rallyStartAt = 0;
     this.turboTimer = null;
+    this.laserTimer = null;
+    this.rallyWallTouched = false;
+    this.rallyHitCount = 0;
+    this.rallyHitStreakSide = null;
+    this.rallyHitStreakCount = 0;
+    this.rallyBarrierGranted = false;
+    this.playerPaddleVelocity = 0;
+    this.aiPaddleVelocity = 0;
+    this.magnetPaddle = null;
+    this.barrierSide = null;
+    this.fxQuality = "high";
+    this.fpsSmoothed = 60;
+    this.lowFpsMs = 0;
+    this.highFpsMs = 0;
+    this.allowScreenShake = true;
   }
 
   createSideState() {
@@ -179,15 +206,32 @@ class PongScene extends Phaser.Scene {
       shieldCooldownUntil: 0,
       turboServeReady: false,
       turboCooldownUntil: 0,
+      laserServeReady: false,
+      laserCooldownUntil: 0,
       ghostActive: false,
       ghostUntil: 0,
       ghostCooldownUntil: 0,
       invertActive: false,
       invertUntil: 0,
       invertCooldownUntil: 0,
+      dashActive: false,
+      dashUntil: 0,
+      dashCooldownUntil: 0,
+      magnetReady: false,
+      magnetActive: false,
+      magnetCooldownUntil: 0,
+      magnetReleaseAt: 0,
+      slowFieldActive: false,
+      slowFieldUntil: 0,
+      slowFieldCooldownUntil: 0,
+      barrierActive: false,
+      barrierCooldownUntil: 0,
+      barrierHitsRemaining: 0,
+      barrierUntil: 0,
       concededStreak: 0,
       edgeDeflects: 0,
       noWallHitCount: 0,
+      fastSaveCount: 0,
     };
   }
 
@@ -225,6 +269,14 @@ class PongScene extends Phaser.Scene {
       state.shieldActive ||
       state.ghostActive ||
       state.invertActive ||
+      state.dashActive ||
+      state.slowFieldActive ||
+      state.magnetActive ||
+      state.magnetReady ||
+      state.barrierActive ||
+      state.turboServeReady ||
+      state.laserServeReady ||
+      state.phaseReady ||
       (this.phaseOwner === side && state.phaseActive)
     );
   }
@@ -232,7 +284,8 @@ class PongScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor(COLORS.bg);
 
-    this.playerSpeed = 560;
+    this.playerSpeedBase = 560;
+    this.playerSpeed = this.playerSpeedBase;
     this.ballBaseSpeed = 430;
 
     this.arena = this.add.graphics().setDepth(0);
@@ -257,6 +310,13 @@ class PongScene extends Phaser.Scene {
       this.ball,
       this.aiPaddle,
       this.handlePaddleHit,
+      null,
+      this
+    );
+    this.physics.add.collider(
+      this.ball,
+      this.barrierWall,
+      this.handleBarrierHit,
       null,
       this
     );
@@ -309,6 +369,17 @@ class PongScene extends Phaser.Scene {
       blendMode: Phaser.BlendModes.ADD,
     });
     this.turboEmitter.stop();
+
+    this.laserEmitter = this.fxParticles.createEmitter({
+      follow: this.ball,
+      speed: { min: 12, max: 40 },
+      lifespan: { min: 160, max: 260 },
+      scale: { start: 0.55, end: 0 },
+      frequency: 45,
+      tint: COLORS.violet,
+      blendMode: Phaser.BlendModes.ADD,
+    });
+    this.laserEmitter.stop();
 
     this.invertEmitter = this.fxParticles.createEmitter({
       follow: this.ball,
@@ -371,6 +442,39 @@ class PongScene extends Phaser.Scene {
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(3)
       .setVisible(false);
+
+    this.playerDashGlow = this.add
+      .rectangle(0, 0, 30, 120)
+      .setStrokeStyle(2, COLORS.cyan, 0.7)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(2)
+      .setVisible(false);
+
+    this.aiDashGlow = this.add
+      .rectangle(0, 0, 30, 120)
+      .setStrokeStyle(2, COLORS.magenta, 0.7)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(2)
+      .setVisible(false);
+
+    this.slowFieldPlayer = this.add
+      .rectangle(0, 0, 10, 10, COLORS.cyan, 0.08)
+      .setDepth(0)
+      .setVisible(false);
+
+    this.slowFieldAi = this.add
+      .rectangle(0, 0, 10, 10, COLORS.magenta, 0.08)
+      .setDepth(0)
+      .setVisible(false);
+
+    this.barrierWall = this.add
+      .rectangle(0, 0, 10, 100, COLORS.violet, 0.25)
+      .setDepth(2)
+      .setVisible(false);
+    this.physics.add.existing(this.barrierWall);
+    this.barrierWall.body.setImmovable(true);
+    this.barrierWall.body.setAllowGravity(false);
+    this.barrierWall.body.setEnable(false);
   }
 
   createPaddles() {
@@ -477,6 +581,56 @@ class PongScene extends Phaser.Scene {
     });
   }
 
+  setFxQuality(level) {
+    if (this.fxQuality === level) return;
+    this.fxQuality = level;
+    this.allowScreenShake = level === "high";
+
+    const isLow = level === "low";
+    const phaseFreq = isLow ? 90 : 40;
+    const turboFreq = isLow ? 110 : 35;
+    const invertFreq = isLow ? 95 : 45;
+    const laserFreq = isLow ? 120 : 45;
+
+    this.phaseEmitter?.setFrequency(phaseFreq);
+    this.turboEmitter?.setFrequency(turboFreq);
+    this.invertEmitter?.setFrequency(invertFreq);
+    this.laserEmitter?.setFrequency(laserFreq);
+
+    const glowAlpha = isLow ? 0.12 : 0.18;
+    if (this.ballGlow) {
+      this.ballGlow.setAlpha(glowAlpha);
+    }
+    if (this.slowFieldPlayer) {
+      this.slowFieldPlayer.setAlpha(isLow ? 0.05 : 0.08);
+    }
+    if (this.slowFieldAi) {
+      this.slowFieldAi.setAlpha(isLow ? 0.05 : 0.08);
+    }
+  }
+
+  updatePerformance(delta) {
+    const fps = 1000 / Math.max(1, delta);
+    this.fpsSmoothed = this.fpsSmoothed * 0.9 + fps * 0.1;
+
+    if (this.fpsSmoothed < 45) {
+      this.lowFpsMs += delta;
+      this.highFpsMs = 0;
+    } else if (this.fpsSmoothed > 55) {
+      this.highFpsMs += delta;
+      this.lowFpsMs = 0;
+    } else {
+      this.lowFpsMs = 0;
+      this.highFpsMs = 0;
+    }
+
+    if (this.lowFpsMs > 1500) {
+      this.setFxQuality("low");
+    } else if (this.highFpsMs > 2500) {
+      this.setFxQuality("high");
+    }
+  }
+
   getTranslation(key) {
     const translations = TRANSLATIONS[this.currentLanguage] || TRANSLATIONS.de;
     return translations[key] || key;
@@ -488,6 +642,11 @@ class PongScene extends Phaser.Scene {
 
   startRally() {
     this.rallyStartAt = this.time.now;
+    this.rallyWallTouched = false;
+    this.rallyHitCount = 0;
+    this.rallyHitStreakSide = null;
+    this.rallyHitStreakCount = 0;
+    this.rallyBarrierGranted = false;
   }
 
   updatePowerups(time) {
@@ -506,9 +665,21 @@ class PongScene extends Phaser.Scene {
       if (state.phaseActive && time > state.phaseExpiresAt) {
         this.deactivatePhase();
       }
+      if (state.dashActive && time > state.dashUntil) {
+        state.dashActive = false;
+      }
+      if (state.slowFieldActive && time > state.slowFieldUntil) {
+        state.slowFieldActive = false;
+      }
+      if (state.barrierActive && time > state.barrierUntil) {
+        this.deactivateBarrier(side);
+      }
     });
 
     this.updatePhaseState(time);
+    this.updateMagnet(time);
+    this.updateDashSpeeds();
+    this.updateSlowField();
     this.updateEffectOverlays();
 
     if (this.invertEmitter) {
@@ -558,6 +729,148 @@ class PongScene extends Phaser.Scene {
       this.aiInvertGlow.setPosition(this.aiPaddle.x, this.aiPaddle.y);
       this.aiInvertGlow.setSize(this.paddleWidth + 12, this.aiPaddleHeight + 16);
     }
+
+    if (this.playerDashGlow) {
+      this.playerDashGlow.setVisible(playerState.dashActive);
+      this.playerDashGlow.setPosition(this.playerPaddle.x, this.playerPaddle.y);
+      this.playerDashGlow.setSize(this.paddleWidth + 16, this.playerPaddleHeight + 20);
+    }
+    if (this.aiDashGlow) {
+      this.aiDashGlow.setVisible(aiState.dashActive);
+      this.aiDashGlow.setPosition(this.aiPaddle.x, this.aiPaddle.y);
+      this.aiDashGlow.setSize(this.paddleWidth + 16, this.aiPaddleHeight + 20);
+    }
+
+    if (this.slowFieldPlayer) {
+      const playerPhysical = this.getPlayerPhysicalSide();
+      const fieldWidth = this.bounds.width / 2;
+      const x =
+        playerPhysical === "left"
+          ? this.bounds.offsetX + fieldWidth / 2
+          : this.bounds.offsetX + fieldWidth + fieldWidth / 2;
+      this.slowFieldPlayer.setVisible(playerState.slowFieldActive);
+      this.slowFieldPlayer.setPosition(x, this.bounds.centerY);
+      this.slowFieldPlayer.setSize(fieldWidth, this.bounds.height);
+    }
+
+    if (this.slowFieldAi) {
+      const aiPhysical = this.getAiPhysicalSide();
+      const fieldWidth = this.bounds.width / 2;
+      const x =
+        aiPhysical === "left"
+          ? this.bounds.offsetX + fieldWidth / 2
+          : this.bounds.offsetX + fieldWidth + fieldWidth / 2;
+      this.slowFieldAi.setVisible(aiState.slowFieldActive);
+      this.slowFieldAi.setPosition(x, this.bounds.centerY);
+      this.slowFieldAi.setSize(fieldWidth, this.bounds.height);
+    }
+
+    if (this.barrierWall) {
+      if (this.barrierWall.body?.enable) {
+        const isLeft = this.barrierSide === "left";
+        const x = isLeft
+          ? this.bounds.offsetX + this.bounds.width * 0.28
+          : this.bounds.offsetX + this.bounds.width * 0.72;
+        this.barrierWall.setPosition(x, this.bounds.centerY);
+        this.barrierWall.setSize(this.paddleWidth + 4, this.bounds.height * 0.3);
+        this.barrierWall.body.setSize(
+          this.paddleWidth + 4,
+          this.bounds.height * 0.3,
+          true
+        );
+      }
+    }
+  }
+
+  updateDashSpeeds() {
+    const playerState = this.sideState.player;
+    const aiState = this.sideState.ai;
+    this.playerSpeed = this.playerSpeedBase * (playerState.dashActive ? 1.35 : 1);
+    this.aiSpeed = this.aiSpeedBase * (aiState.dashActive ? 1.35 : 1);
+  }
+
+  updateSlowField() {
+    if (!this.ballActive) return;
+    const playerState = this.sideState.player;
+    const aiState = this.sideState.ai;
+
+    const ball = this.ball;
+    const speed = ball.body.speed;
+    if (speed <= 0) return;
+
+    const playerPhysical = this.getPlayerPhysicalSide();
+    const ballOnLeft = ball.x < this.bounds.offsetX + this.bounds.width / 2;
+    const ballOnPlayerHalf =
+      (playerPhysical === "left" && ballOnLeft) ||
+      (playerPhysical === "right" && !ballOnLeft);
+
+    let targetSpeed = null;
+    if (playerState.slowFieldActive && ballOnPlayerHalf) {
+      targetSpeed = this.ballBaseSpeed * 0.8;
+    }
+
+    const aiPhysical = this.getAiPhysicalSide();
+    const ballOnAiHalf =
+      (aiPhysical === "left" && ballOnLeft) ||
+      (aiPhysical === "right" && !ballOnLeft);
+    if (aiState.slowFieldActive && ballOnAiHalf) {
+      targetSpeed = this.ballBaseSpeed * 0.8;
+    }
+
+    if (targetSpeed !== null && speed > targetSpeed) {
+      const newSpeed = Phaser.Math.Linear(speed, targetSpeed, 0.05);
+      const scale = newSpeed / speed;
+      ball.body.setVelocity(ball.body.velocity.x * scale, ball.body.velocity.y * scale);
+    }
+  }
+
+  updateMagnet(time) {
+    const playerState = this.sideState.player;
+    const aiState = this.sideState.ai;
+    const magnetSide = playerState.magnetActive
+      ? "player"
+      : aiState.magnetActive
+        ? "ai"
+        : null;
+
+    if (!magnetSide) return;
+
+    const paddle =
+      magnetSide === "player" ? this.playerPaddle : this.aiPaddle;
+    const paddleHeight =
+      magnetSide === "player" ? this.playerPaddleHeight : this.aiPaddleHeight;
+    const dir = this.getBallDirectionForPaddle(paddle);
+
+    this.ball.setPosition(
+      paddle.x + dir * (this.paddleWidth / 2 + this.ballRadius + 2),
+      paddle.y
+    );
+
+    if (time < this.sideState[magnetSide].magnetReleaseAt) {
+      return;
+    }
+
+    this.sideState[magnetSide].magnetActive = false;
+    this.ball.body.moves = true;
+
+    const velocity =
+      magnetSide === "player" ? this.playerPaddleVelocity : this.aiPaddleVelocity;
+    const maxVy = this.ballBaseSpeed * 0.85;
+    const finalVy = Phaser.Math.Clamp(velocity * 0.7, -maxVy, maxVy);
+    const speed = Phaser.Math.Clamp(
+      this.ballBaseSpeed * 1.05,
+      this.ballBaseSpeed,
+      960
+    );
+    const finalVx = Math.sqrt(speed * speed - finalVy * finalVy) * dir;
+
+    this.ball.body.setVelocity(finalVx, finalVy);
+    this.ball.setStrokeStyle(
+      2,
+      magnetSide === "player" ? COLORS.cyan : COLORS.magenta,
+      0.95
+    );
+    this.startRally();
   }
 
   handlePowerupTriggersOnHit(side, ball, paddle) {
@@ -566,6 +879,8 @@ class PongScene extends Phaser.Scene {
     }
     const now = this.time.now;
     const state = this.sideState[side];
+
+    this.recordRallyHit(side, now, ball);
 
     if (this.wallTouchedSinceLastHit) {
       this.wallTouchedSinceLastHit = false;
@@ -742,27 +1057,51 @@ class PongScene extends Phaser.Scene {
   grantTurboServe(side) {
     const state = this.sideState[side];
     if (this.time.now < state.turboCooldownUntil) return;
+    if (state.laserServeReady || state.turboServeReady) return;
     state.turboServeReady = true;
     state.turboCooldownUntil = this.time.now + 8000;
     this.showToast(this.getTranslation("powerTurboReady"), "#ff91e6");
   }
 
-  applyTurboServeIfReady(direction) {
+  grantLaserServe(side) {
+    const state = this.sideState[side];
+    if (this.time.now < state.laserCooldownUntil) return;
+    if (state.laserServeReady || state.turboServeReady) return;
+    state.laserServeReady = true;
+    state.laserCooldownUntil = this.time.now + 10000;
+    this.showToast(this.getTranslation("powerLaserReady"), "#c7b7ff");
+  }
+
+  applyServeModifiers(direction) {
     const serveSide = this.getSideByDirection(direction);
     const state = this.sideState[serveSide];
-    if (!state.turboServeReady) {
-      return this.ballBaseSpeed;
-    }
-    state.turboServeReady = false;
+    const base = this.ballBaseSpeed;
+    let speed = base;
+    let angleRange = { min: -40, max: 40 };
 
-    if (this.turboEmitter) {
-      this.turboEmitter.start();
+    if (state.laserServeReady) {
+      state.laserServeReady = false;
+      speed = base * 1.2;
+      angleRange = { min: -12, max: 12 };
+      this.startServeFx("laser", 800);
+    } else if (state.turboServeReady) {
+      state.turboServeReady = false;
+      speed = base * 1.3;
+      this.startServeFx("turbo", 1000);
     }
+
+    return { speed, angleRange };
+  }
+
+  startServeFx(type, duration) {
+    const emitter = type === "laser" ? this.laserEmitter : this.turboEmitter;
+    if (!emitter) return;
+    emitter.start();
     if (this.turboTimer) {
       this.turboTimer.remove(false);
     }
-    this.turboTimer = this.time.delayedCall(1000, () => {
-      this.turboEmitter?.stop();
+    this.turboTimer = this.time.delayedCall(duration, () => {
+      emitter.stop();
       this.turboTimer = null;
       if (this.ball.body.speed > this.ballBaseSpeed) {
         const scale = this.ballBaseSpeed / this.ball.body.speed;
@@ -772,12 +1111,151 @@ class PongScene extends Phaser.Scene {
         );
       }
     });
+  }
 
-    return this.ballBaseSpeed * 1.3;
+  recordRallyHit(side, now, ball) {
+    this.rallyHitCount += 1;
+    if (this.rallyHitStreakSide === side) {
+      this.rallyHitStreakCount += 1;
+    } else {
+      this.rallyHitStreakSide = side;
+      this.rallyHitStreakCount = 1;
+    }
+
+    const state = this.sideState[side];
+    const opponent = this.getOpponentSide(side);
+    const scoreDiff = this.getScoreBySide(side) - this.getScoreBySide(opponent);
+
+    if (
+      this.rallyHitStreakCount >= 4 &&
+      now >= state.magnetCooldownUntil &&
+      !state.magnetReady &&
+      !state.magnetActive &&
+      Math.abs(scoreDiff) <= 1 &&
+      !this.hasActivePowerup(side)
+    ) {
+      state.magnetReady = true;
+      state.magnetCooldownUntil = now + 14000;
+      this.showToast(this.getTranslation("powerMagnetReady"), "#9fd6ff");
+    }
+
+    if (this.rallyHitCount >= 8 && !this.rallyBarrierGranted) {
+      const trailing =
+        scoreDiff === 0 ? null : scoreDiff < 0 ? side : opponent;
+      if (trailing && !this.hasActivePowerup(trailing)) {
+        this.activateBarrier(trailing);
+        this.rallyBarrierGranted = true;
+      }
+    }
+
+    const fast = ball.body.speed >= this.ballBaseSpeed * 1.15;
+    if (fast) {
+      state.fastSaveCount += 1;
+      if (
+        state.fastSaveCount >= 3 &&
+        now >= state.dashCooldownUntil &&
+        !state.dashActive &&
+        !this.hasActivePowerup(side)
+      ) {
+        this.activateDash(side);
+      }
+    } else {
+      state.fastSaveCount = 0;
+    }
+
+    if (
+      fast &&
+      scoreDiff <= -2 &&
+      now >= state.slowFieldCooldownUntil &&
+      !state.slowFieldActive &&
+      !this.hasActivePowerup(side)
+    ) {
+      this.activateSlowField(side);
+    }
+  }
+
+  tryActivateMagnet(side, paddle) {
+    const state = this.sideState[side];
+    if (!state.magnetReady || state.magnetActive) return false;
+    state.magnetReady = false;
+    state.magnetActive = true;
+    state.magnetReleaseAt = this.time.now + 260;
+    this.ball.body.setVelocity(0, 0);
+    this.ball.body.moves = false;
+    this.magnetPaddle = paddle;
+    this.showToast(this.getTranslation("powerMagnetActive"), "#9fd6ff");
+    return true;
+  }
+
+  activateDash(side) {
+    const state = this.sideState[side];
+    state.dashActive = true;
+    state.dashUntil = this.time.now + 5000;
+    state.dashCooldownUntil = this.time.now + 12000;
+    state.fastSaveCount = 0;
+    this.showToast(this.getTranslation("powerDashActive"), "#7ff7ff");
+  }
+
+  activateSlowField(side) {
+    const state = this.sideState[side];
+    state.slowFieldActive = true;
+    state.slowFieldUntil = this.time.now + 3200;
+    state.slowFieldCooldownUntil = this.time.now + 16000;
+    this.showToast(this.getTranslation("powerSlowFieldActive"), "#7cc7ff");
+  }
+
+  activateBarrier(side) {
+    const state = this.sideState[side];
+    if (this.time.now < state.barrierCooldownUntil) return;
+    state.barrierActive = true;
+    state.barrierHitsRemaining = 1;
+    state.barrierUntil = this.time.now + 4500;
+    state.barrierCooldownUntil = this.time.now + 16000;
+    const physical =
+      side === "player" ? this.getPlayerPhysicalSide() : this.getAiPhysicalSide();
+    this.barrierSide = physical;
+    this.barrierWall.setVisible(true);
+    this.barrierWall.body.setEnable(true);
+    this.updateEffectOverlays();
+    this.showToast(this.getTranslation("powerBarrierActive"), "#caa9ff");
+  }
+
+  deactivateBarrier(side) {
+    const state = this.sideState[side];
+    state.barrierActive = false;
+    state.barrierHitsRemaining = 0;
+    this.barrierSide = null;
+    if (this.barrierWall) {
+      this.barrierWall.setVisible(false);
+      this.barrierWall.body.setEnable(false);
+    }
+  }
+
+  handleBarrierHit() {
+    if (!this.barrierSide) return;
+    const side =
+      this.barrierSide === this.getPlayerPhysicalSide() ? "player" : "ai";
+    const state = this.sideState[side];
+    if (!state.barrierActive) return;
+
+    state.barrierHitsRemaining -= 1;
+    this.spawnShieldBurst(this.barrierSide);
+    this.playImpactSound("wall");
+    this.wallTouchedSinceLastHit = true;
+    this.rallyWallTouched = true;
+    if (state.barrierHitsRemaining <= 0) {
+      this.deactivateBarrier(side);
+    }
   }
 
   resetPowerups() {
     this.deactivatePhase();
+    this.deactivateBarrier("player");
+    this.deactivateBarrier("ai");
+    this.magnetPaddle = null;
+    if (this.ball?.body) {
+      this.ball.body.moves = true;
+    }
     ["player", "ai"].forEach((side) => {
       const state = this.sideState[side];
       state.phaseReady = false;
@@ -788,21 +1266,39 @@ class PongScene extends Phaser.Scene {
       state.shieldCooldownUntil = 0;
       state.turboServeReady = false;
       state.turboCooldownUntil = 0;
+      state.laserServeReady = false;
+      state.laserCooldownUntil = 0;
       state.ghostActive = false;
       state.ghostUntil = 0;
       state.ghostCooldownUntil = 0;
       state.invertActive = false;
       state.invertUntil = 0;
       state.invertCooldownUntil = 0;
+      state.dashActive = false;
+      state.dashUntil = 0;
+      state.dashCooldownUntil = 0;
+      state.magnetReady = false;
+      state.magnetActive = false;
+      state.magnetCooldownUntil = 0;
+      state.magnetReleaseAt = 0;
+      state.slowFieldActive = false;
+      state.slowFieldUntil = 0;
+      state.slowFieldCooldownUntil = 0;
+      state.barrierActive = false;
+      state.barrierCooldownUntil = 0;
+      state.barrierHitsRemaining = 0;
+      state.barrierUntil = 0;
       state.concededStreak = 0;
       state.edgeDeflects = 0;
       state.noWallHitCount = 0;
+      state.fastSaveCount = 0;
     });
     this.updatePaddleLayout();
     this.updateEffectOverlays();
     this.phaseEmitter?.stop();
     this.turboEmitter?.stop();
     this.invertEmitter?.stop();
+    this.laserEmitter?.stop();
   }
 
   handlePoint(scoringSide, goalSound, serveDirection) {
@@ -814,8 +1310,13 @@ class PongScene extends Phaser.Scene {
     }
 
     const rallyDuration = this.time.now - this.rallyStartAt;
-    if (rallyDuration > 0 && rallyDuration < 4000) {
-      this.grantTurboServe(scoringSide);
+    if (!this.hasActivePowerup(scoringSide)) {
+      if (rallyDuration > 0 && rallyDuration < 4000) {
+        this.grantTurboServe(scoringSide);
+      }
+      if (!this.rallyWallTouched) {
+        this.grantLaserServe(scoringSide);
+      }
     }
 
     this.sideState[scoringSide].concededStreak = 0;
@@ -833,10 +1334,13 @@ class PongScene extends Phaser.Scene {
     }
 
     this.wallTouchedSinceLastHit = false;
+    this.rallyWallTouched = false;
     this.sideState.player.noWallHitCount = 0;
     this.sideState.ai.noWallHitCount = 0;
     this.sideState.player.edgeDeflects = 0;
     this.sideState.ai.edgeDeflects = 0;
+    this.sideState.player.fastSaveCount = 0;
+    this.sideState.ai.fastSaveCount = 0;
 
     if (scoringSide === "player") {
       this.scoreLeft += 1;
@@ -845,6 +1349,10 @@ class PongScene extends Phaser.Scene {
     }
     this.updateScore();
     this.playGoalSound(goalSound);
+    if (this.allowScreenShake) {
+      this.cameras.main.shake(140, 0.006);
+      this.cameras.main.flash(120, 60, 20, 120);
+    }
 
     if (scoringSide === "player") {
       if (this.scoreLeft >= this.winTarget) {
@@ -863,6 +1371,8 @@ class PongScene extends Phaser.Scene {
     const key = DIFFICULTIES[name] ? name : "medium";
     this.aiConfig = DIFFICULTIES[key];
     this.difficulty = key;
+    this.aiSpeedBase = this.aiConfig.speed;
+    this.aiSpeed = this.aiSpeedBase;
   }
 
   setFullscreenEnabled(enabled) {
@@ -1410,6 +1920,7 @@ class PongScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    this.updatePerformance(delta);
     this.updatePowerups(time);
     if (this.gameState !== "playing") {
       if (this.ballGlow) {
@@ -1433,6 +1944,7 @@ class PongScene extends Phaser.Scene {
   updatePlayer(time, dt) {
     const minY = this.playerPaddleHeight / 2 + this.safeMargin;
     const maxY = this.bounds.height - this.playerPaddleHeight / 2 - this.safeMargin;
+    const prevY = this.playerPaddle.y;
 
     let dir = 0;
     if (this.cursors.up.isDown || this.keys.W.isDown) {
@@ -1449,6 +1961,7 @@ class PongScene extends Phaser.Scene {
       );
       this.playerTargetY = this.playerPaddle.y;
       this.pointerActive = false;
+      this.playerPaddleVelocity = (this.playerPaddle.y - prevY) / dt;
       return;
     }
 
@@ -1468,6 +1981,8 @@ class PongScene extends Phaser.Scene {
         this.activeTouchId = null;
       }
     }
+
+    this.playerPaddleVelocity = (this.playerPaddle.y - prevY) / dt;
   }
 
   updateAi(time, dt) {
@@ -1496,11 +2011,13 @@ class PongScene extends Phaser.Scene {
       this.aiTargetY = this.bounds.centerY;
     }
 
+    const prevY = this.aiPaddle.y;
     this.aiPaddle.y = this.moveTowards(
       this.aiPaddle.y,
       this.aiTargetY,
-      this.aiConfig.speed * dt
+      this.aiSpeed * dt
     );
+    this.aiPaddleVelocity = (this.aiPaddle.y - prevY) / dt;
   }
 
   moveTowards(current, target, maxDelta) {
@@ -1508,6 +2025,15 @@ class PongScene extends Phaser.Scene {
       return target;
     }
     return current + Math.sign(target - current) * maxDelta;
+  }
+
+  getBallDirectionForPaddle(paddle) {
+    const isRightHanded = this.touchHandedness === "right";
+    const isPlayerPaddle = paddle === this.playerPaddle;
+    if (isRightHanded) {
+      return isPlayerPaddle ? -1 : 1;
+    }
+    return isPlayerPaddle ? 1 : -1;
   }
 
   predictBallY(targetX) {
@@ -1541,6 +2067,9 @@ class PongScene extends Phaser.Scene {
   }
 
   handlePaddleHit(ball, paddle) {
+    if (this.sideState.player.magnetActive || this.sideState.ai.magnetActive) {
+      return;
+    }
     const now = this.time.now;
     if (this.lastPaddleHitPaddle === paddle && now - this.lastPaddleHitAt < 80) {
       return;
@@ -1556,6 +2085,9 @@ class PongScene extends Phaser.Scene {
       }
     }
     this.handlePowerupTriggersOnHit(side, ball, paddle);
+    if (this.tryActivateMagnet(side, paddle)) {
+      return;
+    }
 
     this.playImpactSound("paddle");
     const paddleHeight =
@@ -1570,15 +2102,8 @@ class PongScene extends Phaser.Scene {
       920
     );
 
-    const isRightHanded = this.touchHandedness === "right";
     const isPlayerPaddle = paddle === this.playerPaddle;
-    let dir;
-
-    if (isRightHanded) {
-      dir = isPlayerPaddle ? -1 : 1;
-    } else {
-      dir = isPlayerPaddle ? 1 : -1;
-    }
+    const dir = this.getBallDirectionForPaddle(paddle);
 
     const maxVy = speed * 0.85;
     const finalVy = Phaser.Math.Clamp(diff * 320, -maxVy, maxVy);
@@ -1595,16 +2120,20 @@ class PongScene extends Phaser.Scene {
     if (up || down) {
       this.playImpactSound("wall");
       this.wallTouchedSinceLastHit = true;
+      this.rallyWallTouched = true;
       this.sideState.player.noWallHitCount = 0;
       this.sideState.ai.noWallHitCount = 0;
     }
   }
 
   resetBall(direction) {
-    const angle = Phaser.Math.DegToRad(Phaser.Math.Between(-40, 40));
-    const speed = this.applyTurboServeIfReady(direction);
+    const { speed, angleRange } = this.applyServeModifiers(direction);
+    const angle = Phaser.Math.DegToRad(
+      Phaser.Math.Between(angleRange.min, angleRange.max)
+    );
     const centerX = this.bounds.offsetX + this.bounds.width / 2;
 
+    this.ball.body.moves = true;
     this.ball.setPosition(centerX, this.bounds.centerY);
     this.ball.body.setVelocity(
       Math.cos(angle) * speed * direction,
@@ -1621,6 +2150,7 @@ class PongScene extends Phaser.Scene {
     this.phaseEmitter?.stop();
     this.turboEmitter?.stop();
     this.invertEmitter?.stop();
+    this.laserEmitter?.stop();
   }
 
   startMatch() {

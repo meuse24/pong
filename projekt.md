@@ -27,6 +27,10 @@ Neon Pong ist ein minimalistisches, neon-inspiriertes Pong-Spiel im Browser. Fok
 - Im Hochformat zeigt das UI einen Hinweis; das Spiel pausiert und fordert Querformat.
 - Der Hinweis nutzt ein dezentes Rotationssymbol als visuelle Anleitung.
 - Power-ups mit VFX (Phase-Ball, Pulse-Schild, Turbo-Serve, Ghost-Paddle, Invert-Spin) basieren auf In-Game-Triggern.
+- Zusaetzliche Power-ups: Magnet-Fang, Dash-Paddle, Slow-Field, Laser-Serve, Barrier-Core.
+
+## Performance
+- Adaptives FX-Profil reduziert Partikel und Glow-Intensitaet bei niedriger FPS.
 
 ## Pflegehinweis
 Diese Datei ist **nach jedem groesseren Entwicklungsschritt zu aktualisieren**, z. B. bei neuen Features, Architekturaenderungen oder Build-Workflow-Anpassungen.
