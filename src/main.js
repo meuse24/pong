@@ -68,6 +68,7 @@ const TRANSLATIONS = {
     powerSlowFieldActive: "Slow-Field aktiv",
     powerLaserReady: "Laser-Serve bereit",
     powerBarrierActive: "Barrier-Core aktiv",
+    attractTagline: "Neon. Reflexe. Momentum.",
     playUntil: "Spiele bis",
     controlsHint: "W/S oder ↑/↓ · Maus bewegen · Touch ziehen",
     firstTo: "Zuerst bis",
@@ -120,6 +121,7 @@ const TRANSLATIONS = {
     powerSlowFieldActive: "Slow Field active",
     powerLaserReady: "Laser Serve ready",
     powerBarrierActive: "Barrier Core active",
+    attractTagline: "Neon. Reflexes. Momentum.",
     playUntil: "Play until",
     controlsHint: "W/S or ↑/↓ · Move mouse · Touch drag",
     firstTo: "First to",
@@ -194,6 +196,8 @@ class PongScene extends Phaser.Scene {
     this.lowFpsMs = 0;
     this.highFpsMs = 0;
     this.allowScreenShake = true;
+    this.attractActive = false;
+    this.attractTime = 0;
   }
 
   createSideState() {
@@ -346,10 +350,14 @@ class PongScene extends Phaser.Scene {
       gfx.destroy();
     }
 
-    this.fxParticles = this.add.particles("spark").setDepth(4);
+    const createEmitter = (config) => {
+      const emitter = this.add.particles(0, 0, "spark", config).setDepth(4);
+      emitter.startFollow(this.ball);
+      emitter.stop();
+      return emitter;
+    };
 
-    this.phaseEmitter = this.fxParticles.createEmitter({
-      follow: this.ball,
+    this.phaseEmitter = createEmitter({
       speed: { min: 6, max: 22 },
       lifespan: { min: 220, max: 420 },
       scale: { start: 0.6, end: 0 },
@@ -357,10 +365,8 @@ class PongScene extends Phaser.Scene {
       tint: COLORS.cyan,
       blendMode: Phaser.BlendModes.ADD,
     });
-    this.phaseEmitter.stop();
 
-    this.turboEmitter = this.fxParticles.createEmitter({
-      follow: this.ball,
+    this.turboEmitter = createEmitter({
       speed: { min: 18, max: 55 },
       lifespan: { min: 180, max: 300 },
       scale: { start: 0.7, end: 0 },
@@ -368,10 +374,8 @@ class PongScene extends Phaser.Scene {
       tint: COLORS.magenta,
       blendMode: Phaser.BlendModes.ADD,
     });
-    this.turboEmitter.stop();
 
-    this.laserEmitter = this.fxParticles.createEmitter({
-      follow: this.ball,
+    this.laserEmitter = createEmitter({
       speed: { min: 12, max: 40 },
       lifespan: { min: 160, max: 260 },
       scale: { start: 0.55, end: 0 },
@@ -379,10 +383,8 @@ class PongScene extends Phaser.Scene {
       tint: COLORS.violet,
       blendMode: Phaser.BlendModes.ADD,
     });
-    this.laserEmitter.stop();
 
-    this.invertEmitter = this.fxParticles.createEmitter({
-      follow: this.ball,
+    this.invertEmitter = createEmitter({
       speed: { min: 10, max: 32 },
       lifespan: { min: 200, max: 360 },
       scale: { start: 0.55, end: 0 },
@@ -390,7 +392,6 @@ class PongScene extends Phaser.Scene {
       tint: COLORS.violet,
       blendMode: Phaser.BlendModes.ADD,
     });
-    this.invertEmitter.stop();
 
     this.toastText = this.add
       .text(0, 0, "", {
@@ -475,6 +476,52 @@ class PongScene extends Phaser.Scene {
     this.barrierWall.body.setImmovable(true);
     this.barrierWall.body.setAllowGravity(false);
     this.barrierWall.body.setEnable(false);
+
+    this.attractStars = this.add.particles(0, 0, "spark", {
+      speed: { min: 5, max: 18 },
+      lifespan: { min: 6000, max: 9000 },
+      scale: { start: 0.35, end: 0 },
+      frequency: 120,
+      alpha: { start: 0.18, end: 0 },
+      tint: [COLORS.cyan, COLORS.violet, COLORS.magenta],
+      blendMode: Phaser.BlendModes.ADD,
+      emitting: false,
+    });
+    this.attractStars.setDepth(0);
+
+    this.attractRingOuter = this.add
+      .circle(0, 0, 120)
+      .setStrokeStyle(2, COLORS.violet, 0.25)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(0)
+      .setVisible(false);
+    this.attractRingInner = this.add
+      .circle(0, 0, 70)
+      .setStrokeStyle(2, COLORS.cyan, 0.35)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(0)
+      .setVisible(false);
+
+    this.attractRingOuterTween = this.tweens.add({
+      targets: this.attractRingOuter,
+      scale: { from: 0.95, to: 1.05 },
+      alpha: { from: 0.35, to: 0.1 },
+      duration: 2400,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+      paused: true,
+    });
+    this.attractRingInnerTween = this.tweens.add({
+      targets: this.attractRingInner,
+      scale: { from: 0.9, to: 1.12 },
+      alpha: { from: 0.45, to: 0.12 },
+      duration: 2000,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+      paused: true,
+    });
   }
 
   createPaddles() {
@@ -487,6 +534,15 @@ class PongScene extends Phaser.Scene {
       .rectangle(0, 0, 20, 120, COLORS.magenta)
       .setStrokeStyle(2, COLORS.magenta, 0.85)
       .setDepth(2);
+
+    this.playerPaddleGlow = this.add
+      .rectangle(0, 0, 22, 130, COLORS.cyan, 0.12)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(1);
+    this.aiPaddleGlow = this.add
+      .rectangle(0, 0, 22, 130, COLORS.magenta, 0.12)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(1);
 
     this.physics.add.existing(this.playerPaddle);
     this.physics.add.existing(this.aiPaddle);
@@ -606,6 +662,21 @@ class PongScene extends Phaser.Scene {
     }
     if (this.slowFieldAi) {
       this.slowFieldAi.setAlpha(isLow ? 0.05 : 0.08);
+    }
+    if (this.attractStars) {
+      if (isLow) {
+        this.attractStars.stop();
+        this.attractStars.setAlpha(0);
+      } else if (this.attractActive) {
+        this.attractStars.setAlpha(1);
+        this.attractStars.start();
+      }
+    }
+    if (this.attractRingOuter) {
+      this.attractRingOuter.setVisible(!isLow && this.attractActive);
+    }
+    if (this.attractRingInner) {
+      this.attractRingInner.setVisible(!isLow && this.attractActive);
     }
   }
 
@@ -782,6 +853,113 @@ class PongScene extends Phaser.Scene {
     }
   }
 
+  updateAttractFxLayout() {
+    if (!this.bounds) return;
+    const centerX = this.bounds.offsetX + this.bounds.width / 2;
+    const centerY = this.bounds.centerY;
+    const size = Math.min(this.bounds.width, this.bounds.height);
+    if (this.attractRingOuter) {
+      this.attractRingOuter.setPosition(centerX, centerY);
+      this.attractRingOuter.setRadius(size * 0.22);
+    }
+    if (this.attractRingInner) {
+      this.attractRingInner.setPosition(centerX, centerY);
+      this.attractRingInner.setRadius(size * 0.13);
+    }
+    if (this.attractStars) {
+      this.attractStars.setEmitZone({
+        type: "random",
+        source: new Phaser.Geom.Rectangle(
+          this.bounds.offsetX,
+          0,
+          this.bounds.width,
+          this.bounds.height
+        ),
+      });
+    }
+  }
+
+  startAttractMode() {
+    if (this.attractActive) return;
+    this.attractActive = true;
+    this.attractTime = 0;
+    this.ballActive = false;
+    if (this.ball?.body) {
+      this.ball.body.setVelocity(0, 0);
+      this.ball.body.enable = false;
+      this.ball.body.moves = false;
+    }
+    if (this.attractStars) {
+      this.attractStars.setAlpha(1);
+      this.attractStars.start();
+    }
+    this.attractRingOuter?.setVisible(true);
+    this.attractRingInner?.setVisible(true);
+    this.attractRingOuterTween?.resume();
+    this.attractRingInnerTween?.resume();
+    this.updateAttractFxLayout();
+  }
+
+  stopAttractMode() {
+    if (!this.attractActive) return;
+    this.attractActive = false;
+    if (this.ball?.body) {
+      this.ball.body.enable = true;
+      this.ball.body.moves = true;
+    }
+    this.attractStars?.stop();
+    this.attractStars?.setAlpha(0);
+    this.attractRingOuter?.setVisible(false);
+    this.attractRingInner?.setVisible(false);
+    this.attractRingOuterTween?.pause();
+    this.attractRingInnerTween?.pause();
+  }
+
+  updateAttractMode(delta) {
+    if (!this.attractActive || !this.bounds) return;
+
+    const dt = delta / 1000;
+    this.attractTime += dt;
+    const t = this.attractTime;
+    const centerX = this.bounds.offsetX + this.bounds.width / 2;
+    const centerY = this.bounds.centerY;
+    const ampX = this.bounds.width * 0.18;
+    const ampY = this.bounds.height * 0.22;
+    const x = centerX + Math.cos(t * 0.7) * ampX;
+    const y = centerY + Math.sin(t * 1.1) * ampY;
+
+    this.ball.setPosition(x, y);
+    if (this.ballGlow) {
+      this.ballGlow.setPosition(x, y);
+    }
+
+    const playerMinY = this.playerPaddleHeight / 2 + this.safeMargin;
+    const playerMaxY = this.bounds.height - this.playerPaddleHeight / 2 - this.safeMargin;
+    const aiMinY = this.aiPaddleHeight / 2 + this.safeMargin;
+    const aiMaxY = this.bounds.height - this.aiPaddleHeight / 2 - this.safeMargin;
+
+    const targetPlayerY = Phaser.Math.Clamp(y, playerMinY, playerMaxY);
+    const targetAiY = Phaser.Math.Clamp(
+      centerY - (y - centerY) * 0.6,
+      aiMinY,
+      aiMaxY
+    );
+
+    this.playerPaddle.y = this.moveTowards(
+      this.playerPaddle.y,
+      targetPlayerY,
+      this.playerSpeedBase * 0.35 * dt
+    );
+    this.aiPaddle.y = this.moveTowards(
+      this.aiPaddle.y,
+      targetAiY,
+      this.aiSpeedBase * 0.35 * dt
+    );
+
+    this.playerPaddleGlow?.setPosition(this.playerPaddle.x, this.playerPaddle.y);
+    this.aiPaddleGlow?.setPosition(this.aiPaddle.x, this.aiPaddle.y);
+  }
+
   updateDashSpeeds() {
     const playerState = this.sideState.player;
     const aiState = this.sideState.ai;
@@ -837,8 +1015,6 @@ class PongScene extends Phaser.Scene {
 
     const paddle =
       magnetSide === "player" ? this.playerPaddle : this.aiPaddle;
-    const paddleHeight =
-      magnetSide === "player" ? this.playerPaddleHeight : this.aiPaddleHeight;
     const dir = this.getBallDirectionForPaddle(paddle);
 
     this.ball.setPosition(
@@ -1466,6 +1642,7 @@ class PongScene extends Phaser.Scene {
     this.currentLanguage = lang;
     localStorage.setItem("pong-language", lang);
     this.updateLanguage();
+    this.updateAttractFxLayout();
   }
 
   updateLanguage() {
@@ -1520,6 +1697,8 @@ class PongScene extends Phaser.Scene {
     this.winTarget = this.readWinTarget();
     this.updateWinTargetLabels();
     this.setGameplaySettingsEnabled(true);
+
+    this.startAttractMode();
 
     ui.difficultySelect?.addEventListener("change", (event) => {
       if (this.gameState === "playing") {
@@ -1618,10 +1797,12 @@ class PongScene extends Phaser.Scene {
 
   showStartScreen() {
     ui.startScreen?.classList.add("visible");
+    this.startAttractMode();
   }
 
   hideStartScreen() {
     ui.startScreen?.classList.remove("visible");
+    this.stopAttractMode();
   }
 
   showGameOverScreen(winner) {
@@ -1634,10 +1815,12 @@ class PongScene extends Phaser.Scene {
       ui.gameOverScore.textContent = `${this.scoreLeft} : ${this.scoreRight}`;
     }
     ui.gameOverScreen?.classList.add("visible");
+    this.startAttractMode();
   }
 
   hideGameOverScreen() {
     ui.gameOverScreen?.classList.remove("visible");
+    this.stopAttractMode();
   }
 
   showInfoScreen() {
@@ -1851,6 +2034,7 @@ class PongScene extends Phaser.Scene {
     if (this.toastText) {
       this.toastText.setPosition(this.bounds.centerX, Math.max(10, height * 0.02));
     }
+    this.updateAttractFxLayout();
   }
 
   drawArena() {
@@ -1917,12 +2101,22 @@ class PongScene extends Phaser.Scene {
       Phaser.Math.Clamp(this.aiPaddle.y || height / 2, aiMinY, aiMaxY)
     );
     this.aiPaddle.body.setSize(this.paddleWidth, this.aiPaddleHeight, true);
+
+    if (this.playerPaddleGlow) {
+      this.playerPaddleGlow.setPosition(this.playerPaddle.x, this.playerPaddle.y);
+      this.playerPaddleGlow.setSize(this.paddleWidth + 10, this.playerPaddleHeight + 18);
+    }
+    if (this.aiPaddleGlow) {
+      this.aiPaddleGlow.setPosition(this.aiPaddle.x, this.aiPaddle.y);
+      this.aiPaddleGlow.setSize(this.paddleWidth + 10, this.aiPaddleHeight + 18);
+    }
   }
 
   update(time, delta) {
     this.updatePerformance(delta);
     this.updatePowerups(time);
     if (this.gameState !== "playing") {
+      this.updateAttractMode(delta);
       if (this.ballGlow) {
         this.ballGlow.setPosition(this.ball.x, this.ball.y);
       }

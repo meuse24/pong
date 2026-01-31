@@ -31,6 +31,7 @@ Neon Pong ist ein minimalistisches, neon-inspiriertes Pong-Spiel im Browser. Fok
 
 ## Performance
 - Adaptives FX-Profil reduziert Partikel und Glow-Intensitaet bei niedriger FPS.
+- Attract-Mode nutzt sparsame Partikel und Pulsringe, die bei Low-FX deaktiviert werden.
 
 ## Pflegehinweis
 Diese Datei ist **nach jedem groesseren Entwicklungsschritt zu aktualisieren**, z. B. bei neuen Features, Architekturaenderungen oder Build-Workflow-Anpassungen.

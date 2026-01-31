@@ -299,6 +299,45 @@ input[type="number"] {
   color: var(--neon-cyan);
 }
 
+.attract-tagline {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  color: rgba(241, 251, 255, 0.75);
+  margin-bottom: 18px;
+  position: relative;
+}
+
+.attract-tagline::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  width: 70%;
+  height: 1px;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(78, 245, 255, 0.45),
+    rgba(255, 73, 200, 0.4),
+    transparent
+  );
+  animation: attractPulse 2.6s ease-in-out infinite;
+}
+
+@keyframes attractPulse {
+  0% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}
+
 .screen-subtitle {
   font-size: 0.95rem;
   color: var(--text-muted);
