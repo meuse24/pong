@@ -6,6 +6,7 @@ const ui = {
   handednessSelect: document.getElementById("handedness"),
   winTargetInput: document.getElementById("win-target"),
   languageSelect: document.getElementById("language"),
+  fullscreenSelect: document.getElementById("fullscreen"),
   menuToggle: document.getElementById("menu-toggle"),
   menuPanel: document.getElementById("menu-panel"),
   menuBackdrop: document.getElementById("menu-backdrop"),
@@ -14,6 +15,8 @@ const ui = {
   infoButton: document.getElementById("info-button"),
   infoScreen: document.getElementById("info-screen"),
   infoClose: document.getElementById("info-close"),
+  rotateScreen: document.getElementById("orientation-lock"),
+  rotateTry: document.getElementById("rotate-try"),
   winTargetLabel: document.getElementById("win-target-label"),
   gameOverScreen: document.getElementById("gameover-screen"),
   gameOverTitle: document.getElementById("gameover-title"),
@@ -45,6 +48,20 @@ const TRANSLATIONS = {
     handednessRight: "Rechte Hand",
     handednessLeft: "Linke Hand",
     language: "Sprache",
+    fullscreen: "Vollbild",
+    fullscreenOn: "An",
+    fullscreenOff: "Aus",
+    rotateTitle: "Bitte drehen",
+    rotateSubtitle: "Dieses Spiel laeuft im Querformat.",
+    rotateTry: "Ich habe gedreht",
+    rotateHint: "Aktiviere Bildschirmrotation, falls noetig.",
+    powerPhaseReady: "Phase-Ball bereit",
+    powerPhaseActive: "Phase-Ball aktiviert",
+    powerShieldReady: "Pulse-Schild bereit",
+    powerShieldUsed: "Pulse-Schild!",
+    powerTurboReady: "Turbo-Serve bereit",
+    powerGhostActive: "Ghost-Paddle aktiv",
+    powerInvertActive: "Invert-Spin aktiv",
     playUntil: "Spiele bis",
     controlsHint: "W/S oder ↑/↓ · Maus bewegen · Touch ziehen",
     firstTo: "Zuerst bis",
@@ -62,6 +79,9 @@ const TRANSLATIONS = {
     back: "Zurück",
     playAgain: "Noch eine Runde",
     menuToggleLabel: "Einstellungen öffnen",
+    brand: "NEON PONG",
+    gameOver: "SPIEL VORBEI",
+    infoFooter: "© 2026 meuse24 · Built with Codex · Lizenz: MIT",
     youWin: "DU GEWINNST",
     aiWins: "KI GEWINNT",
   },
@@ -74,6 +94,20 @@ const TRANSLATIONS = {
     handednessRight: "Right Hand",
     handednessLeft: "Left Hand",
     language: "Language",
+    fullscreen: "Fullscreen",
+    fullscreenOn: "On",
+    fullscreenOff: "Off",
+    rotateTitle: "Rotate device",
+    rotateSubtitle: "This game is meant for landscape mode.",
+    rotateTry: "I rotated",
+    rotateHint: "Enable auto-rotate if needed.",
+    powerPhaseReady: "Phase Ball ready",
+    powerPhaseActive: "Phase Ball active",
+    powerShieldReady: "Pulse Shield ready",
+    powerShieldUsed: "Pulse Shield!",
+    powerTurboReady: "Turbo Serve ready",
+    powerGhostActive: "Ghost Paddle active",
+    powerInvertActive: "Invert Spin active",
     playUntil: "Play until",
     controlsHint: "W/S or ↑/↓ · Move mouse · Touch drag",
     firstTo: "First to",
@@ -91,6 +125,9 @@ const TRANSLATIONS = {
     back: "Back",
     playAgain: "Play Again",
     menuToggleLabel: "Open settings",
+    brand: "NEON PONG",
+    gameOver: "GAME OVER",
+    infoFooter: "© 2026 meuse24 · Built with Codex · License: MIT",
     youWin: "YOU WIN",
     aiWins: "AI WINS",
   },
@@ -116,6 +153,80 @@ class PongScene extends Phaser.Scene {
     this.lastPaddleHitAt = 0;
     this.lastPaddleHitPaddle = null;
     this.currentLanguage = "de";
+    this.difficulty = "medium";
+    this.fullscreenEnabled = true;
+    this.serveTimer = null;
+    this.orientationPaused = false;
+    this.orientationQuery = null;
+    this.sideState = {
+      player: this.createSideState(),
+      ai: this.createSideState(),
+    };
+    this.phaseOwner = null;
+    this.phaseDisabledPaddle = null;
+    this.wallTouchedSinceLastHit = false;
+    this.rallyStartAt = 0;
+    this.turboTimer = null;
+  }
+
+  createSideState() {
+    return {
+      phaseReady: false,
+      phaseActive: false,
+      phaseCooldownUntil: 0,
+      phaseExpiresAt: 0,
+      shieldActive: false,
+      shieldCooldownUntil: 0,
+      turboServeReady: false,
+      turboCooldownUntil: 0,
+      ghostActive: false,
+      ghostUntil: 0,
+      ghostCooldownUntil: 0,
+      invertActive: false,
+      invertUntil: 0,
+      invertCooldownUntil: 0,
+      concededStreak: 0,
+      edgeDeflects: 0,
+      noWallHitCount: 0,
+    };
+  }
+
+  getPlayerPhysicalSide() {
+    return this.touchHandedness === "right" ? "right" : "left";
+  }
+
+  getAiPhysicalSide() {
+    return this.getPlayerPhysicalSide() === "right" ? "left" : "right";
+  }
+
+  getOpponentSide(side) {
+    return side === "player" ? "ai" : "player";
+  }
+
+  getSideByPaddle(paddle) {
+    return paddle === this.playerPaddle ? "player" : "ai";
+  }
+
+  getScoreBySide(side) {
+    return side === "player" ? this.scoreLeft : this.scoreRight;
+  }
+
+  getSideByDirection(direction) {
+    const playerPhysical = this.getPlayerPhysicalSide();
+    if (direction < 0) {
+      return playerPhysical === "left" ? "player" : "ai";
+    }
+    return playerPhysical === "right" ? "player" : "ai";
+  }
+
+  hasActivePowerup(side) {
+    const state = this.sideState[side];
+    return (
+      state.shieldActive ||
+      state.ghostActive ||
+      state.invertActive ||
+      (this.phaseOwner === side && state.phaseActive)
+    );
   }
 
   create() {
@@ -130,6 +241,7 @@ class PongScene extends Phaser.Scene {
     this.createPaddles();
     this.createBall();
     this.createScore();
+    this.createFx();
 
     this.initUi();
     this.setupAudio();
@@ -163,6 +275,102 @@ class PongScene extends Phaser.Scene {
 
     this.holdBall();
     this.showStartScreen();
+  }
+
+  createFx() {
+    if (!this.textures.exists("spark")) {
+      const gfx = this.make.graphics({ x: 0, y: 0, add: false });
+      gfx.fillStyle(0xffffff, 1);
+      gfx.fillCircle(4, 4, 4);
+      gfx.generateTexture("spark", 8, 8);
+      gfx.destroy();
+    }
+
+    this.fxParticles = this.add.particles("spark").setDepth(4);
+
+    this.phaseEmitter = this.fxParticles.createEmitter({
+      follow: this.ball,
+      speed: { min: 6, max: 22 },
+      lifespan: { min: 220, max: 420 },
+      scale: { start: 0.6, end: 0 },
+      frequency: 40,
+      tint: COLORS.cyan,
+      blendMode: Phaser.BlendModes.ADD,
+    });
+    this.phaseEmitter.stop();
+
+    this.turboEmitter = this.fxParticles.createEmitter({
+      follow: this.ball,
+      speed: { min: 18, max: 55 },
+      lifespan: { min: 180, max: 300 },
+      scale: { start: 0.7, end: 0 },
+      frequency: 35,
+      tint: COLORS.magenta,
+      blendMode: Phaser.BlendModes.ADD,
+    });
+    this.turboEmitter.stop();
+
+    this.invertEmitter = this.fxParticles.createEmitter({
+      follow: this.ball,
+      speed: { min: 10, max: 32 },
+      lifespan: { min: 200, max: 360 },
+      scale: { start: 0.55, end: 0 },
+      frequency: 45,
+      tint: COLORS.violet,
+      blendMode: Phaser.BlendModes.ADD,
+    });
+    this.invertEmitter.stop();
+
+    this.toastText = this.add
+      .text(0, 0, "", {
+        fontFamily: "Oxanium, Segoe UI, sans-serif",
+        fontSize: "16px",
+        color: "#e9f6ff",
+        letterSpacing: "2px",
+      })
+      .setDepth(60)
+      .setOrigin(0.5, 0)
+      .setAlpha(0);
+
+    this.playerShieldGlow = this.add
+      .rectangle(0, 0, 30, 120)
+      .setStrokeStyle(2, COLORS.cyan, 0.85)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(3)
+      .setVisible(false);
+
+    this.aiShieldGlow = this.add
+      .rectangle(0, 0, 30, 120)
+      .setStrokeStyle(2, COLORS.magenta, 0.85)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(3)
+      .setVisible(false);
+
+    this.playerGhostGlow = this.add
+      .rectangle(0, 0, 30, 120, COLORS.cyan, 0.15)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(1)
+      .setVisible(false);
+
+    this.aiGhostGlow = this.add
+      .rectangle(0, 0, 30, 120, COLORS.magenta, 0.15)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(1)
+      .setVisible(false);
+
+    this.playerInvertGlow = this.add
+      .rectangle(0, 0, 30, 120)
+      .setStrokeStyle(2, COLORS.violet, 0.8)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(3)
+      .setVisible(false);
+
+    this.aiInvertGlow = this.add
+      .rectangle(0, 0, 30, 120)
+      .setStrokeStyle(2, COLORS.violet, 0.8)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(3)
+      .setVisible(false);
   }
 
   createPaddles() {
@@ -254,8 +462,494 @@ class PongScene extends Phaser.Scene {
     }
   }
 
+  showToast(message, color = "#e9f6ff") {
+    if (!this.toastText) return;
+    this.toastText.setText(message);
+    this.toastText.setColor(color);
+    this.toastText.setAlpha(0);
+    this.tweens.add({
+      targets: this.toastText,
+      alpha: 1,
+      duration: 180,
+      yoyo: true,
+      hold: 900,
+      ease: "Sine.easeOut",
+    });
+  }
+
+  getTranslation(key) {
+    const translations = TRANSLATIONS[this.currentLanguage] || TRANSLATIONS.de;
+    return translations[key] || key;
+  }
+
+  isMatchPoint(side) {
+    return this.getScoreBySide(side) >= this.winTarget - 1;
+  }
+
+  startRally() {
+    this.rallyStartAt = this.time.now;
+  }
+
+  updatePowerups(time) {
+    const leftState = this.sideState.player;
+    const rightState = this.sideState.ai;
+
+    ["player", "ai"].forEach((side) => {
+      const state = this.sideState[side];
+      if (state.ghostActive && time > state.ghostUntil) {
+        state.ghostActive = false;
+        this.updatePaddleLayout();
+      }
+      if (state.invertActive && time > state.invertUntil) {
+        state.invertActive = false;
+      }
+      if (state.phaseActive && time > state.phaseExpiresAt) {
+        this.deactivatePhase();
+      }
+    });
+
+    this.updatePhaseState(time);
+    this.updateEffectOverlays();
+
+    if (this.invertEmitter) {
+      if (leftState.invertActive || rightState.invertActive) {
+        this.invertEmitter.start();
+      } else {
+        this.invertEmitter.stop();
+      }
+    }
+  }
+
+  updateEffectOverlays() {
+    if (!this.playerPaddle || !this.aiPaddle) return;
+
+    const playerState = this.sideState.player;
+    const aiState = this.sideState.ai;
+
+    if (this.playerShieldGlow) {
+      this.playerShieldGlow.setVisible(playerState.shieldActive);
+      this.playerShieldGlow.setPosition(this.playerPaddle.x, this.playerPaddle.y);
+      this.playerShieldGlow.setSize(this.paddleWidth + 10, this.playerPaddleHeight + 14);
+    }
+    if (this.aiShieldGlow) {
+      this.aiShieldGlow.setVisible(aiState.shieldActive);
+      this.aiShieldGlow.setPosition(this.aiPaddle.x, this.aiPaddle.y);
+      this.aiShieldGlow.setSize(this.paddleWidth + 10, this.aiPaddleHeight + 14);
+    }
+
+    if (this.playerGhostGlow) {
+      this.playerGhostGlow.setVisible(playerState.ghostActive);
+      this.playerGhostGlow.setPosition(this.playerPaddle.x, this.playerPaddle.y);
+      this.playerGhostGlow.setSize(this.paddleWidth + 14, this.playerPaddleHeight + 18);
+    }
+    if (this.aiGhostGlow) {
+      this.aiGhostGlow.setVisible(aiState.ghostActive);
+      this.aiGhostGlow.setPosition(this.aiPaddle.x, this.aiPaddle.y);
+      this.aiGhostGlow.setSize(this.paddleWidth + 14, this.aiPaddleHeight + 18);
+    }
+
+    if (this.playerInvertGlow) {
+      this.playerInvertGlow.setVisible(playerState.invertActive);
+      this.playerInvertGlow.setPosition(this.playerPaddle.x, this.playerPaddle.y);
+      this.playerInvertGlow.setSize(this.paddleWidth + 12, this.playerPaddleHeight + 16);
+    }
+    if (this.aiInvertGlow) {
+      this.aiInvertGlow.setVisible(aiState.invertActive);
+      this.aiInvertGlow.setPosition(this.aiPaddle.x, this.aiPaddle.y);
+      this.aiInvertGlow.setSize(this.paddleWidth + 12, this.aiPaddleHeight + 16);
+    }
+  }
+
+  handlePowerupTriggersOnHit(side, ball, paddle) {
+    if (this.gameState !== "playing") {
+      return;
+    }
+    const now = this.time.now;
+    const state = this.sideState[side];
+
+    if (this.wallTouchedSinceLastHit) {
+      this.wallTouchedSinceLastHit = false;
+      this.sideState.player.noWallHitCount = 0;
+      this.sideState.ai.noWallHitCount = 0;
+    }
+
+    if (state.phaseReady && !state.phaseActive) {
+      this.activatePhase(side);
+      state.phaseReady = false;
+    }
+
+    state.noWallHitCount += 1;
+    if (
+      state.noWallHitCount >= 3 &&
+      now >= state.phaseCooldownUntil &&
+      !state.phaseReady &&
+      !state.phaseActive &&
+      !this.phaseOwner &&
+      !this.hasActivePowerup(side)
+    ) {
+      state.phaseReady = true;
+      state.phaseCooldownUntil = now + 12000;
+      this.showToast(this.getTranslation("powerPhaseReady"), "#7ff7ff");
+    }
+
+    const height = this.bounds.height;
+    const edgeThreshold = height * 0.15;
+    if (ball.y < edgeThreshold || ball.y > height - edgeThreshold) {
+      state.edgeDeflects += 1;
+      if (
+        state.edgeDeflects >= 5 &&
+        now >= state.ghostCooldownUntil &&
+        !state.ghostActive &&
+        !this.hasActivePowerup(side)
+      ) {
+        this.activateGhost(side);
+      }
+    }
+
+    const paddleHeight =
+      paddle === this.playerPaddle ? this.playerPaddleHeight : this.aiPaddleHeight;
+    const diff = Math.abs((ball.y - paddle.y) / (paddleHeight / 2));
+    if (
+      diff > 0.7 &&
+      now >= state.invertCooldownUntil &&
+      !state.invertActive &&
+      !this.hasActivePowerup(side) &&
+      !this.isMatchPoint(side)
+    ) {
+      this.activateInvert(side);
+    }
+  }
+
+  activatePhase(side) {
+    const state = this.sideState[side];
+    if (state.phaseActive || this.phaseOwner) return;
+    state.phaseActive = true;
+    this.phaseOwner = side;
+    state.phaseExpiresAt = this.time.now + 8000;
+    this.phaseEmitter?.start();
+    this.ball.setStrokeStyle(2, COLORS.cyan, 0.95);
+    this.showToast(this.getTranslation("powerPhaseActive"), "#7ff7ff");
+  }
+
+  deactivatePhase() {
+    if (this.phaseOwner) {
+      this.sideState[this.phaseOwner].phaseActive = false;
+    }
+    if (this.phaseDisabledPaddle?.body) {
+      this.phaseDisabledPaddle.body.checkCollision.none = false;
+    }
+    this.phaseDisabledPaddle = null;
+    this.phaseOwner = null;
+    this.phaseEmitter?.stop();
+  }
+
+  updatePhaseState(time) {
+    if (!this.phaseOwner) return;
+    const owner = this.phaseOwner;
+    const opponent = this.getOpponentSide(owner);
+    const opponentPaddle = opponent === "player" ? this.playerPaddle : this.aiPaddle;
+
+    if (!opponentPaddle?.body) return;
+    opponentPaddle.body.checkCollision.none = true;
+    this.phaseDisabledPaddle = opponentPaddle;
+
+    const vx = this.ball.body.velocity.x;
+    const passDistance = this.paddleWidth / 2 + this.ballRadius + 6;
+    if (
+      (vx < 0 && this.ball.x < opponentPaddle.x - passDistance) ||
+      (vx > 0 && this.ball.x > opponentPaddle.x + passDistance) ||
+      time > this.sideState[owner].phaseExpiresAt
+    ) {
+      this.deactivatePhase();
+    }
+  }
+
+  activateGhost(side) {
+    const state = this.sideState[side];
+    state.ghostActive = true;
+    state.ghostUntil = this.time.now + 6000;
+    state.ghostCooldownUntil = this.time.now + 14000;
+    state.edgeDeflects = 0;
+    this.updatePaddleLayout();
+    this.showToast(this.getTranslation("powerGhostActive"), "#7ff7ff");
+  }
+
+  activateInvert(side) {
+    const state = this.sideState[side];
+    state.invertActive = true;
+    state.invertUntil = this.time.now + 4000;
+    state.invertCooldownUntil = this.time.now + 10000;
+    this.showToast(this.getTranslation("powerInvertActive"), "#b8a2ff");
+    this.invertEmitter?.start();
+  }
+
+  activateShield(side) {
+    const state = this.sideState[side];
+    state.shieldActive = true;
+    state.shieldCooldownUntil = this.time.now + 15000;
+    this.showToast(this.getTranslation("powerShieldReady"), "#7ff7ff");
+  }
+
+  triggerShield(side) {
+    const state = this.sideState[side];
+    if (!state.shieldActive) return false;
+    state.shieldActive = false;
+
+    const physicalSide =
+      side === "player" ? this.getPlayerPhysicalSide() : this.getAiPhysicalSide();
+    const direction = physicalSide === "left" ? 1 : -1;
+    const angle = Phaser.Math.DegToRad(Phaser.Math.Between(-30, 30));
+    const speed = this.ballBaseSpeed * 1.05;
+    const goalX =
+      physicalSide === "left"
+        ? this.bounds.offsetX + this.ballRadius * 2
+        : this.bounds.offsetX + this.bounds.width - this.ballRadius * 2;
+
+    this.ball.setPosition(goalX, this.bounds.centerY);
+    this.ball.body.setVelocity(
+      Math.cos(angle) * speed * direction,
+      Math.sin(angle) * speed
+    );
+
+    this.spawnShieldBurst(physicalSide);
+    this.showToast(this.getTranslation("powerShieldUsed"), "#7ff7ff");
+    this.playImpactSound("wall");
+    this.startRally();
+    return true;
+  }
+
+  spawnShieldBurst(side) {
+    const x =
+      side === "left"
+        ? this.bounds.offsetX + this.ballRadius * 3
+        : this.bounds.offsetX + this.bounds.width - this.ballRadius * 3;
+    const ring = this.add
+      .circle(x, this.bounds.centerY, 20)
+      .setStrokeStyle(2, side === "left" ? COLORS.cyan : COLORS.magenta, 0.9)
+      .setDepth(5)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: ring,
+      scale: 3,
+      alpha: 0,
+      duration: 420,
+      ease: "Sine.easeOut",
+      onComplete: () => ring.destroy(),
+    });
+  }
+
+  grantTurboServe(side) {
+    const state = this.sideState[side];
+    if (this.time.now < state.turboCooldownUntil) return;
+    state.turboServeReady = true;
+    state.turboCooldownUntil = this.time.now + 8000;
+    this.showToast(this.getTranslation("powerTurboReady"), "#ff91e6");
+  }
+
+  applyTurboServeIfReady(direction) {
+    const serveSide = this.getSideByDirection(direction);
+    const state = this.sideState[serveSide];
+    if (!state.turboServeReady) {
+      return this.ballBaseSpeed;
+    }
+    state.turboServeReady = false;
+
+    if (this.turboEmitter) {
+      this.turboEmitter.start();
+    }
+    if (this.turboTimer) {
+      this.turboTimer.remove(false);
+    }
+    this.turboTimer = this.time.delayedCall(1000, () => {
+      this.turboEmitter?.stop();
+      this.turboTimer = null;
+      if (this.ball.body.speed > this.ballBaseSpeed) {
+        const scale = this.ballBaseSpeed / this.ball.body.speed;
+        this.ball.body.setVelocity(
+          this.ball.body.velocity.x * scale,
+          this.ball.body.velocity.y * scale
+        );
+      }
+    });
+
+    return this.ballBaseSpeed * 1.3;
+  }
+
+  resetPowerups() {
+    this.deactivatePhase();
+    ["player", "ai"].forEach((side) => {
+      const state = this.sideState[side];
+      state.phaseReady = false;
+      state.phaseActive = false;
+      state.phaseCooldownUntil = 0;
+      state.phaseExpiresAt = 0;
+      state.shieldActive = false;
+      state.shieldCooldownUntil = 0;
+      state.turboServeReady = false;
+      state.turboCooldownUntil = 0;
+      state.ghostActive = false;
+      state.ghostUntil = 0;
+      state.ghostCooldownUntil = 0;
+      state.invertActive = false;
+      state.invertUntil = 0;
+      state.invertCooldownUntil = 0;
+      state.concededStreak = 0;
+      state.edgeDeflects = 0;
+      state.noWallHitCount = 0;
+    });
+    this.updatePaddleLayout();
+    this.updateEffectOverlays();
+    this.phaseEmitter?.stop();
+    this.turboEmitter?.stop();
+    this.invertEmitter?.stop();
+  }
+
+  handlePoint(scoringSide, goalSound, serveDirection) {
+    const concedingSide = this.getOpponentSide(scoringSide);
+
+    if (this.triggerShield(concedingSide)) {
+      this.sideState[concedingSide].concededStreak = 0;
+      return;
+    }
+
+    const rallyDuration = this.time.now - this.rallyStartAt;
+    if (rallyDuration > 0 && rallyDuration < 4000) {
+      this.grantTurboServe(scoringSide);
+    }
+
+    this.sideState[scoringSide].concededStreak = 0;
+    const concedingState = this.sideState[concedingSide];
+    concedingState.concededStreak += 1;
+
+    if (
+      concedingState.concededStreak >= 2 &&
+      this.time.now >= concedingState.shieldCooldownUntil &&
+      !concedingState.shieldActive &&
+      !this.hasActivePowerup(concedingSide)
+    ) {
+      this.activateShield(concedingSide);
+      concedingState.concededStreak = 0;
+    }
+
+    this.wallTouchedSinceLastHit = false;
+    this.sideState.player.noWallHitCount = 0;
+    this.sideState.ai.noWallHitCount = 0;
+    this.sideState.player.edgeDeflects = 0;
+    this.sideState.ai.edgeDeflects = 0;
+
+    if (scoringSide === "player") {
+      this.scoreLeft += 1;
+    } else {
+      this.scoreRight += 1;
+    }
+    this.updateScore();
+    this.playGoalSound(goalSound);
+
+    if (scoringSide === "player") {
+      if (this.scoreLeft >= this.winTarget) {
+        this.endMatch("left");
+        return;
+      }
+    } else if (this.scoreRight >= this.winTarget) {
+      this.endMatch("right");
+      return;
+    }
+
+    this.scheduleServe(serveDirection);
+  }
+
   setDifficulty(name) {
-    this.aiConfig = DIFFICULTIES[name] || DIFFICULTIES.medium;
+    const key = DIFFICULTIES[name] ? name : "medium";
+    this.aiConfig = DIFFICULTIES[key];
+    this.difficulty = key;
+  }
+
+  setFullscreenEnabled(enabled) {
+    this.fullscreenEnabled = Boolean(enabled);
+    localStorage.setItem("pong-fullscreen", this.fullscreenEnabled ? "on" : "off");
+    if (ui.fullscreenSelect) {
+      ui.fullscreenSelect.value = this.fullscreenEnabled ? "on" : "off";
+    }
+    if (!this.fullscreenEnabled && document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch((err) => {
+        console.warn("Exit fullscreen failed:", err);
+      });
+    }
+    if (
+      this.fullscreenEnabled &&
+      this.gameState === "playing" &&
+      !document.fullscreenElement &&
+      document.documentElement.requestFullscreen
+    ) {
+      document.documentElement.requestFullscreen().catch((err) => {
+        console.warn("Fullscreen request failed:", err);
+      });
+    }
+  }
+
+  setGameplaySettingsEnabled(enabled) {
+    const locked = !enabled;
+    [ui.difficultySelect, ui.handednessSelect, ui.winTargetInput].forEach(
+      (element) => {
+        if (element) {
+          element.disabled = locked;
+        }
+      }
+    );
+  }
+
+  syncGameplaySettingsUi() {
+    if (ui.difficultySelect) {
+      ui.difficultySelect.value = this.difficulty || "medium";
+    }
+    if (ui.handednessSelect) {
+      ui.handednessSelect.value = this.touchHandedness === "left" ? "left" : "right";
+    }
+    if (ui.winTargetInput) {
+      ui.winTargetInput.value = String(this.winTarget);
+    }
+    this.updateWinTargetLabels();
+  }
+
+  isPortraitMode() {
+    if (this.orientationQuery) {
+      return this.orientationQuery.matches;
+    }
+    return window.innerHeight > window.innerWidth;
+  }
+
+  updateOrientationState() {
+    const isPortrait = this.isPortraitMode();
+    if (ui.rotateScreen) {
+      ui.rotateScreen.classList.toggle("visible", isPortrait);
+    }
+    if (isPortrait) {
+      this.setMenuOpen(false);
+      if (this.gameState === "playing" && !this.orientationPaused) {
+        this.orientationPaused = true;
+        this.physics.world.pause();
+        this.scene.pause();
+      }
+      return;
+    }
+
+    if (this.orientationPaused) {
+      this.orientationPaused = false;
+      this.scene.resume();
+      this.physics.world.resume();
+    }
+  }
+
+  async requestOrientationLock() {
+    if (!screen.orientation?.lock) {
+      return;
+    }
+    try {
+      await screen.orientation.lock("landscape");
+    } catch (err) {
+      console.warn("Orientation lock failed:", err);
+    }
   }
 
   setLanguage(lang) {
@@ -305,28 +999,57 @@ class PongScene extends Phaser.Scene {
     }
     this.updateLanguage();
 
+    const savedFullscreen = localStorage.getItem("pong-fullscreen");
+    this.fullscreenEnabled = savedFullscreen ? savedFullscreen !== "off" : true;
+    if (ui.fullscreenSelect) {
+      ui.fullscreenSelect.value = this.fullscreenEnabled ? "on" : "off";
+    }
+
     this.setDifficulty(ui.difficultySelect?.value || "medium");
     this.touchHandedness = ui.handednessSelect?.value || "right";
     this.winTarget = this.readWinTarget();
     this.updateWinTargetLabels();
+    this.setGameplaySettingsEnabled(true);
 
     ui.difficultySelect?.addEventListener("change", (event) => {
+      if (this.gameState === "playing") {
+        this.syncGameplaySettingsUi();
+        return;
+      }
       this.setDifficulty(event.target.value);
     });
 
     ui.winTargetInput?.addEventListener("change", () => {
+      if (this.gameState === "playing") {
+        this.syncGameplaySettingsUi();
+        return;
+      }
       this.winTarget = this.readWinTarget();
       this.updateWinTargetLabels();
       this.checkWinTarget();
     });
 
     ui.handednessSelect?.addEventListener("change", (event) => {
+      if (this.gameState === "playing") {
+        this.syncGameplaySettingsUi();
+        return;
+      }
       this.touchHandedness = event.target.value === "left" ? "left" : "right";
       this.onResize(this.scale.gameSize);
+      this.updateScore();
     });
 
     ui.languageSelect?.addEventListener("change", (event) => {
       this.setLanguage(event.target.value);
+    });
+
+    ui.fullscreenSelect?.addEventListener("change", (event) => {
+      this.setFullscreenEnabled(event.target.value !== "off");
+    });
+
+    ui.rotateTry?.addEventListener("click", () => {
+      this.requestOrientationLock();
+      this.updateOrientationState();
     });
 
     ui.startButton?.addEventListener("click", () => this.startMatch());
@@ -348,6 +1071,18 @@ class PongScene extends Phaser.Scene {
         this.startMatch();
       }
     });
+
+    this.orientationQuery =
+      window.matchMedia?.("(orientation: portrait)") || null;
+    if (this.orientationQuery?.addEventListener) {
+      this.orientationQuery.addEventListener("change", () =>
+        this.updateOrientationState()
+      );
+    } else if (this.orientationQuery?.addListener) {
+      this.orientationQuery.addListener(() => this.updateOrientationState());
+    }
+    window.addEventListener("resize", () => this.updateOrientationState());
+    this.updateOrientationState();
   }
 
   readWinTarget() {
@@ -589,27 +1324,12 @@ class PongScene extends Phaser.Scene {
     );
     this.physics.world.setBoundsCollision(false, false, true, true);
 
-    this.paddleHeight = Math.max(90, height * 0.18);
+    this.paddleHeightBase = Math.max(90, height * 0.18);
     this.paddleWidth = Math.max(12, fieldWidth * 0.012);
     this.ballRadius = Math.max(6, Math.min(fieldWidth, height) * 0.012);
+    this.marginX = Math.max(20, fieldWidth * 0.04);
 
-    const marginX = Math.max(20, fieldWidth * 0.04);
-    const minY = this.paddleHeight / 2 + this.safeMargin;
-    const maxY = height - this.paddleHeight / 2 - this.safeMargin;
-
-    this.playerPaddle.setSize(this.paddleWidth, this.paddleHeight);
-    this.playerPaddle.setPosition(
-      isRightHanded ? this.bounds.offsetX + fieldWidth - marginX : this.bounds.offsetX + marginX,
-      Phaser.Math.Clamp(this.playerPaddle.y || height / 2, minY, maxY)
-    );
-    this.playerPaddle.body.setSize(this.paddleWidth, this.paddleHeight, true);
-
-    this.aiPaddle.setSize(this.paddleWidth, this.paddleHeight);
-    this.aiPaddle.setPosition(
-      isRightHanded ? this.bounds.offsetX + marginX : this.bounds.offsetX + fieldWidth - marginX,
-      Phaser.Math.Clamp(this.aiPaddle.y || height / 2, minY, maxY)
-    );
-    this.aiPaddle.body.setSize(this.paddleWidth, this.paddleHeight, true);
+    this.updatePaddleLayout();
 
     this.ball.setRadius(this.ballRadius);
     this.ball.body.setCircle(this.ballRadius, -this.ballRadius, -this.ballRadius);
@@ -617,6 +1337,10 @@ class PongScene extends Phaser.Scene {
 
     this.updateScoreLayout();
     this.drawArena();
+    this.updateEffectOverlays();
+    if (this.toastText) {
+      this.toastText.setPosition(this.bounds.centerX, Math.max(10, height * 0.02));
+    }
   }
 
   drawArena() {
@@ -642,12 +1366,51 @@ class PongScene extends Phaser.Scene {
     let y = inset + 8;
     const centerX = offsetX + width / 2;
     while (y < height - inset - 8) {
-      this.midLine.lineBetween(centerX, y, centerX, y + dash);
-      y += dash + gap;
+    this.midLine.lineBetween(centerX, y, centerX, y + dash);
+    y += dash + gap;
     }
   }
 
+  updatePaddleLayout() {
+    const height = this.bounds.height;
+    const fieldWidth = this.bounds.width;
+    const isRightHanded = this.touchHandedness === "right";
+    const playerScale = this.sideState.player.ghostActive ? 1.25 : 1;
+    const aiScale = this.sideState.ai.ghostActive ? 1.25 : 1;
+
+    this.playerPaddleHeight = this.paddleHeightBase * playerScale;
+    this.aiPaddleHeight = this.paddleHeightBase * aiScale;
+
+    const playerMinY = this.playerPaddleHeight / 2 + this.safeMargin;
+    const playerMaxY = height - this.playerPaddleHeight / 2 - this.safeMargin;
+    const aiMinY = this.aiPaddleHeight / 2 + this.safeMargin;
+    const aiMaxY = height - this.aiPaddleHeight / 2 - this.safeMargin;
+
+    this.playerPaddle.setSize(this.paddleWidth, this.playerPaddleHeight);
+    this.playerPaddle.setPosition(
+      isRightHanded
+        ? this.bounds.offsetX + fieldWidth - this.marginX
+        : this.bounds.offsetX + this.marginX,
+      Phaser.Math.Clamp(this.playerPaddle.y || height / 2, playerMinY, playerMaxY)
+    );
+    this.playerPaddle.body.setSize(
+      this.paddleWidth,
+      this.playerPaddleHeight,
+      true
+    );
+
+    this.aiPaddle.setSize(this.paddleWidth, this.aiPaddleHeight);
+    this.aiPaddle.setPosition(
+      isRightHanded
+        ? this.bounds.offsetX + this.marginX
+        : this.bounds.offsetX + fieldWidth - this.marginX,
+      Phaser.Math.Clamp(this.aiPaddle.y || height / 2, aiMinY, aiMaxY)
+    );
+    this.aiPaddle.body.setSize(this.paddleWidth, this.aiPaddleHeight, true);
+  }
+
   update(time, delta) {
+    this.updatePowerups(time);
     if (this.gameState !== "playing") {
       if (this.ballGlow) {
         this.ballGlow.setPosition(this.ball.x, this.ball.y);
@@ -668,8 +1431,8 @@ class PongScene extends Phaser.Scene {
   }
 
   updatePlayer(time, dt) {
-    const minY = this.paddleHeight / 2 + this.safeMargin;
-    const maxY = this.bounds.height - this.paddleHeight / 2 - this.safeMargin;
+    const minY = this.playerPaddleHeight / 2 + this.safeMargin;
+    const maxY = this.bounds.height - this.playerPaddleHeight / 2 - this.safeMargin;
 
     let dir = 0;
     if (this.cursors.up.isDown || this.keys.W.isDown) {
@@ -712,8 +1475,8 @@ class PongScene extends Phaser.Scene {
       return;
     }
 
-    const minY = this.paddleHeight / 2 + this.safeMargin;
-    const maxY = this.bounds.height - this.paddleHeight / 2 - this.safeMargin;
+    const minY = this.aiPaddleHeight / 2 + this.safeMargin;
+    const maxY = this.bounds.height - this.aiPaddleHeight / 2 - this.safeMargin;
     const isRightHanded = this.touchHandedness === "right";
     const ballMovingTowardsAi = isRightHanded
       ? this.ball.body.velocity.x < 0
@@ -785,8 +1548,22 @@ class PongScene extends Phaser.Scene {
     this.lastPaddleHitAt = now;
     this.lastPaddleHitPaddle = paddle;
 
+    const side = this.getSideByPaddle(paddle);
+    if (this.phaseOwner && this.sideState[this.phaseOwner].phaseActive) {
+      const opponent = this.getOpponentSide(this.phaseOwner);
+      if (side === opponent) {
+        return;
+      }
+    }
+    this.handlePowerupTriggersOnHit(side, ball, paddle);
+
     this.playImpactSound("paddle");
-    const diff = (ball.y - paddle.y) / (this.paddleHeight / 2);
+    const paddleHeight =
+      paddle === this.playerPaddle ? this.playerPaddleHeight : this.aiPaddleHeight;
+    let diff = (ball.y - paddle.y) / (paddleHeight / 2);
+    if (this.sideState[side].invertActive) {
+      diff *= -1;
+    }
     const speed = Phaser.Math.Clamp(
       ball.body.speed * 1.04,
       this.ballBaseSpeed,
@@ -817,12 +1594,15 @@ class PongScene extends Phaser.Scene {
     if (body !== this.ball.body) return;
     if (up || down) {
       this.playImpactSound("wall");
+      this.wallTouchedSinceLastHit = true;
+      this.sideState.player.noWallHitCount = 0;
+      this.sideState.ai.noWallHitCount = 0;
     }
   }
 
   resetBall(direction) {
     const angle = Phaser.Math.DegToRad(Phaser.Math.Between(-40, 40));
-    const speed = this.ballBaseSpeed;
+    const speed = this.applyTurboServeIfReady(direction);
     const centerX = this.bounds.offsetX + this.bounds.width / 2;
 
     this.ball.setPosition(centerX, this.bounds.centerY);
@@ -830,6 +1610,7 @@ class PongScene extends Phaser.Scene {
       Math.cos(angle) * speed * direction,
       Math.sin(angle) * speed
     );
+    this.startRally();
   }
 
   holdBall() {
@@ -837,32 +1618,53 @@ class PongScene extends Phaser.Scene {
     this.ball.body.setVelocity(0, 0);
     const centerX = this.bounds.offsetX + this.bounds.width / 2;
     this.ball.setPosition(centerX, this.bounds.centerY);
+    this.phaseEmitter?.stop();
+    this.turboEmitter?.stop();
+    this.invertEmitter?.stop();
   }
 
   startMatch() {
     this.hideStartScreen();
     this.hideGameOverScreen();
     this.setMenuOpen(false);
+    this.resetPowerups();
     this.scoreLeft = 0;
     this.scoreRight = 0;
     this.updateScore();
     this.gameState = "playing";
     this.ballActive = true;
+    this.setGameplaySettingsEnabled(false);
+    if (this.serveTimer) {
+      this.serveTimer.remove(false);
+      this.serveTimer = null;
+    }
     this.resetBall(Phaser.Math.Between(0, 1) === 0 ? -1 : 1);
 
     // Enter fullscreen
     const elem = document.documentElement;
-    if (elem.requestFullscreen) {
-      elem.requestFullscreen().catch((err) => {
-        console.warn("Fullscreen request failed:", err);
-      });
+    if (this.fullscreenEnabled && elem.requestFullscreen) {
+      elem
+        .requestFullscreen()
+        .then(() => this.requestOrientationLock())
+        .catch((err) => {
+          console.warn("Fullscreen request failed:", err);
+        });
+    } else {
+      this.requestOrientationLock();
     }
+    this.updateOrientationState();
   }
 
   endMatch(winner) {
     this.gameState = "gameover";
     this.holdBall();
+    this.deactivatePhase();
     this.showGameOverScreen(winner);
+    this.setGameplaySettingsEnabled(true);
+    if (this.serveTimer) {
+      this.serveTimer.remove(false);
+      this.serveTimer = null;
+    }
 
     // Exit fullscreen
     if (document.fullscreenElement && document.exitFullscreen) {
@@ -882,7 +1684,14 @@ class PongScene extends Phaser.Scene {
     const centerX = this.bounds.offsetX + this.bounds.width / 2;
     this.ball.setPosition(centerX, this.bounds.centerY);
 
-    this.time.delayedCall(550, () => {
+    if (this.serveTimer) {
+      this.serveTimer.remove(false);
+    }
+    this.serveTimer = this.time.delayedCall(550, () => {
+      this.serveTimer = null;
+      if (this.gameState !== "playing") {
+        return;
+      }
       this.ballActive = true;
       this.resetBall(direction);
     });
@@ -896,42 +1705,16 @@ class PongScene extends Phaser.Scene {
 
     if (outLeft) {
       if (isRightHanded) {
-        this.scoreLeft += 1;
-        this.updateScore();
-        this.playGoalSound("left");
-        if (this.scoreLeft >= this.winTarget) {
-          this.endMatch("left");
-          return;
-        }
+        this.handlePoint("player", "left", -1);
       } else {
-        this.scoreRight += 1;
-        this.updateScore();
-        this.playGoalSound("right");
-        if (this.scoreRight >= this.winTarget) {
-          this.endMatch("right");
-          return;
-        }
+        this.handlePoint("ai", "right", -1);
       }
-      this.scheduleServe(-1);
     } else if (outRight) {
       if (isRightHanded) {
-        this.scoreRight += 1;
-        this.updateScore();
-        this.playGoalSound("right");
-        if (this.scoreRight >= this.winTarget) {
-          this.endMatch("right");
-          return;
-        }
+        this.handlePoint("ai", "right", 1);
       } else {
-        this.scoreLeft += 1;
-        this.updateScore();
-        this.playGoalSound("left");
-        if (this.scoreLeft >= this.winTarget) {
-          this.endMatch("left");
-          return;
-        }
+        this.handlePoint("player", "left", 1);
       }
-      this.scheduleServe(1);
     }
   }
 
@@ -945,6 +1728,9 @@ class PongScene extends Phaser.Scene {
   }
 
   checkWinTarget() {
+    if (this.gameState !== "playing") {
+      return;
+    }
     if (this.scoreLeft >= this.winTarget) {
       this.endMatch("left");
     } else if (this.scoreRight >= this.winTarget) {

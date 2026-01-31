@@ -67,6 +67,20 @@ body::after {
   }
 }
 
+@keyframes rotateDevice {
+  0%,
+  20% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  55%,
+  70% {
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+}
+
 #app {
   position: relative;
   width: 100%;
@@ -192,6 +206,13 @@ input[type="number"]:focus {
   box-shadow: 0 0 18px rgba(78, 245, 255, 0.45);
 }
 
+select:disabled,
+input[type="number"]:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 input[type="number"] {
   font-family: inherit;
   font-size: 0.9rem;
@@ -225,6 +246,34 @@ input[type="number"] {
 .screen.visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+#orientation-lock {
+  z-index: 40;
+}
+
+.rotate-icon {
+  width: 62px;
+  height: 38px;
+  margin: 0 auto 14px;
+  border: 2px solid rgba(78, 245, 255, 0.7);
+  border-radius: 10px;
+  position: relative;
+  box-shadow: 0 0 16px rgba(78, 245, 255, 0.35);
+}
+
+.rotate-icon::before {
+  content: "";
+  position: absolute;
+  width: 22px;
+  height: 40px;
+  border: 2px solid rgba(255, 73, 200, 0.7);
+  border-radius: 8px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(0deg);
+  box-shadow: 0 0 12px rgba(255, 73, 200, 0.3);
+  animation: rotateDevice 2.8s ease-in-out infinite;
 }
 
 .screen-card {

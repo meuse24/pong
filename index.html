@@ -33,7 +33,7 @@
       </button>
       <div id="menu-backdrop"></div>
       <div id="menu-panel">
-        <div class="brand">NEON PONG</div>
+        <div class="brand" data-i18n="brand">NEON PONG</div>
         <label class="field">
           <span data-i18n="difficulty">KI-Schwierigkeit</span>
           <select id="difficulty">
@@ -60,11 +60,18 @@
           <span data-i18n="playUntil">Spiele bis</span>
           <input id="win-target" type="number" min="1" max="15" value="5" />
         </label>
+        <label class="field">
+          <span data-i18n="fullscreen">Vollbild</span>
+          <select id="fullscreen">
+            <option value="on" data-i18n="fullscreenOn">An</option>
+            <option value="off" data-i18n="fullscreenOff">Aus</option>
+          </select>
+        </label>
         <div class="hint" data-i18n="controlsHint">W/S oder ↑/↓ · Maus bewegen · Touch ziehen</div>
       </div>
       <div id="start-screen" class="screen visible">
         <div class="screen-card">
-          <div class="screen-title">NEON PONG</div>
+          <div class="screen-title" data-i18n="brand">NEON PONG</div>
           <div class="screen-subtitle">
             <span data-i18n="firstTo">Zuerst bis</span> <span id="win-target-label">5</span>
           </div>
@@ -77,6 +84,23 @@
             </button>
           </div>
           <div class="hint" data-i18n="controlsHint">W/S oder ↑/↓ · Maus bewegen · Touch ziehen</div>
+        </div>
+      </div>
+      <div id="orientation-lock" class="screen">
+        <div class="screen-card">
+          <div class="rotate-icon" aria-hidden="true"></div>
+          <div class="screen-title" data-i18n="rotateTitle">Bitte drehen</div>
+          <div class="screen-subtitle" data-i18n="rotateSubtitle">
+            Dieses Spiel laeuft im Querformat.
+          </div>
+          <div class="screen-actions">
+            <button id="rotate-try" class="cta secondary" type="button" data-i18n="rotateTry">
+              Ich habe gedreht
+            </button>
+          </div>
+          <div class="hint" data-i18n="rotateHint">
+            Aktiviere Bildschirmrotation, falls noetig.
+          </div>
         </div>
       </div>
       <div id="info-screen" class="screen">
@@ -102,7 +126,7 @@
             </div>
           </div>
           <div class="info-footer">
-            © 2026 meuse24 · Built with Codex · License: MIT
+            <span data-i18n="infoFooter">© 2026 meuse24 · Built with Codex · License: MIT</span>
           </div>
           <button id="info-close" class="cta secondary" type="button" data-i18n="back">
             Zurück
@@ -111,7 +135,7 @@
       </div>
       <div id="gameover-screen" class="screen">
         <div class="screen-card">
-          <div id="gameover-title" class="screen-title">GAME OVER</div>
+          <div id="gameover-title" class="screen-title" data-i18n="gameOver">GAME OVER</div>
           <div id="gameover-score" class="screen-subtitle">0 : 0</div>
           <button id="gameover-button" class="cta" type="button" data-i18n="playAgain">
             Noch eine Runde
