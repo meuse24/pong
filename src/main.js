@@ -479,8 +479,8 @@ class PongScene extends Phaser.Scene {
       })
       .setDepth(100)
       .setOrigin(0.5)
-      .setAlpha(0);
-    this.powerupBannerTween = null;
+      .setAlpha(1);
+    this.powerupBannerTimer = null;
     this.powerupBannerBaseScale = 1;
 
     this.playerShieldGlow = this.add
@@ -741,33 +741,29 @@ class PongScene extends Phaser.Scene {
     const text = label.toUpperCase();
     const glowStrength = isLow ? 12 : 22;
     const strokeWidth = isLow ? 1.4 : 2.4;
-    const alphaPeak = isLow ? 0.8 : 1.0;
 
     this.powerupBanner.setText(text);
     this.powerupBanner.setColor(color);
     this.powerupBanner.setShadow(0, 0, color, glowStrength, true, true);
     this.powerupBanner.setStroke(color, strokeWidth);
+    this.powerupBanner.setAlpha(1);
+    this.powerupBanner.setVisible(true);
     this.updatePowerupBannerLayout();
 
-    if (this.powerupBannerTween) {
-      this.powerupBannerTween.stop();
-      this.powerupBannerTween = null;
+    if (this.powerupBannerTimer) {
+      this.powerupBannerTimer.remove(false);
+      this.powerupBannerTimer = null;
     }
 
     const baseScale = this.powerupBannerBaseScale || 1;
-    this.powerupBanner.setAlpha(0);
-    this.powerupBanner.setScale(baseScale * (isLow ? 0.98 : 0.95));
-    this.powerupBannerTween = this.tweens.add({
-      targets: this.powerupBanner,
-      alpha: alphaPeak,
-      scale: baseScale * (isLow ? 1 : 1.04),
-      duration: isLow ? 180 : 240,
-      yoyo: true,
-      hold: isLow ? 520 : 950,
-      ease: "Sine.easeOut",
-      onComplete: () => {
-        this.powerupBanner.setAlpha(0);
-      },
+    this.powerupBanner.setScale(baseScale * (isLow ? 1 : 1.04));
+
+    this.powerupBannerTimer = this.time.delayedCall(2000, () => {
+      if (this.powerupBanner) {
+        this.powerupBanner.setText("");
+        this.powerupBanner.setVisible(false);
+      }
+      this.powerupBannerTimer = null;
     });
   }
 
@@ -1959,8 +1955,13 @@ class PongScene extends Phaser.Scene {
       this.startBannerTimer.remove(false);
       this.startBannerTimer = null;
     }
+    if (this.powerupBannerTimer) {
+      this.powerupBannerTimer.remove(false);
+      this.powerupBannerTimer = null;
+    }
     if (this.powerupBanner) {
-      this.powerupBanner.setAlpha(0);
+      this.powerupBanner.setText("");
+      this.powerupBanner.setVisible(false);
     }
   }
 
